@@ -652,6 +652,13 @@ function updateRequestCount() {
 // دوال مساعدة لعرض حالة الطلب
 // ===============================================
 function getStatusClass(request) {
+    // التحقق من حالة الإدارة أولاً
+    if (request.adminStatus === 'approved') {
+        return 'status-approved';
+    }
+    if (request.adminStatus === 'rejected') {
+        return 'status-rejected';
+    }
     if (request.emailOpened) {
         return 'status-sent';
     }
@@ -662,6 +669,13 @@ function getStatusClass(request) {
 }
 
 function getStatusText(request) {
+    // التحقق من حالة الإدارة أولاً
+    if (request.adminStatus === 'approved') {
+        return 'تم اعتماد الطلب ✓';
+    }
+    if (request.adminStatus === 'rejected') {
+        return 'تم رفض الطلب';
+    }
     if (request.emailOpened) {
         return 'تم الإرسال - يتم مراجعته';
     }
@@ -1263,7 +1277,7 @@ window.addEventListener('load', function() {
 });
 
 // ===============================================
-// البحث عن طلب
+// البحث عن طلب (للتحقق من الإرسال فقط)
 // ===============================================
 function searchRequest() {
     const searchInput = document.getElementById('searchRequestInput');
@@ -1287,42 +1301,21 @@ function searchRequest() {
     );
     
     if (foundRequest) {
-        const statusText = getStatusText(foundRequest);
-        const canEditRequest = canEdit(foundRequest);
-        
-        let editButton = '';
-        if (canEditRequest) {
-            editButton = `
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #c3e6cb;">
-                    <button type="button" onclick="editRequestFromSearch('${foundRequest.requestId}')" 
-                        style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: 'Tajawal', sans-serif;">
-                        تعديل الطلب
-                    </button>
-                    <div style="font-size: 0.8em; color: #666; margin-top: 6px;">
-                        ⚠️ التعديل متاح لمرة واحدة فقط
-                    </div>
-                </div>
-            `;
-        } else {
-            editButton = `
-                <div style="margin-top: 10px; font-size: 0.85em; color: #856404;">
-                    🔒 تم استخدام فرصة التعديل المتاحة
-                </div>
-            `;
-        }
-        
+        // عرض رسالة بسيطة فقط - بدون تفاصيل الحالة
         resultDiv.className = 'search-result found';
         resultDiv.innerHTML = `
-            <strong>تم العثور على الطلب</strong><br>
-            رقم الطلب: ${foundRequest.requestId}<br>
-            الاسم: ${foundRequest.name}<br>
-            الحالة: ${statusText}<br>
-            تاريخ الإرسال: ${foundRequest.submissionDate}
-            ${editButton}
+            <strong>✓ تم إرسال الطلب بنجاح</strong><br>
+            <span style="font-size: 0.9em; color: #666;">
+                رقم الطلب: ${foundRequest.requestId}<br>
+                تاريخ الإرسال: ${foundRequest.submissionDate}
+            </span>
+            <div style="margin-top: 10px; font-size: 0.85em; color: #155724; background: #d4edda; padding: 8px; border-radius: 6px;">
+                📧 سيتم إشعارك على بريدك الإلكتروني عند اعتماد أو رفض الطلب
+            </div>
         `;
     } else {
         resultDiv.className = 'search-result not-found';
-        resultDiv.innerHTML = 'لم يتم العثور على طلب بهذا الرقم';
+        resultDiv.innerHTML = 'لم يتم العثور على طلب مرتبط بهذا الرقم المدني';
     }
 }
 
@@ -1398,3 +1391,22 @@ window.viewFullImage = viewFullImage;
 window.removeCapturedImage = removeCapturedImage;
 window.searchRequest = searchRequest;
 window.editRequestFromSearch = editRequestFromSearch;
+window.toggleOtherBank = toggleOtherBank;
+
+// ===============================================
+// إظهار/إخفاء حقل البنك الآخر
+// ===============================================
+function toggleOtherBank() {
+    const bankSelect = document.getElementById('bankName');
+    const otherBankInput = document.getElementById('otherBankName');
+    
+    if (bankSelect.value === 'other') {
+        otherBankInput.style.display = 'block';
+        otherBankInput.required = true;
+        otherBankInput.focus();
+    } else {
+        otherBankInput.style.display = 'none';
+        otherBankInput.required = false;
+        otherBankInput.value = '';
+    }
+}
