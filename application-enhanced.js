@@ -904,22 +904,32 @@ function displayCapturedImagesSlider(fieldName) {
         return;
     }
     
-    const currentIndex = sliderIndexes[fieldName] || 0;
+    // التأكد من أن الـ index ضمن النطاق الصحيح
+    if (sliderIndexes[fieldName] === undefined || sliderIndexes[fieldName] < 0) {
+        sliderIndexes[fieldName] = 0;
+    }
+    if (sliderIndexes[fieldName] >= images.length) {
+        sliderIndexes[fieldName] = images.length - 1;
+    }
+    
+    const currentIndex = sliderIndexes[fieldName];
+    const canGoPrev = currentIndex > 0;
+    const canGoNext = currentIndex < images.length - 1;
     
     container.innerHTML = `
         <div class="images-slider">
-            <button type="button" class="slider-nav" onclick="sliderPrev('${fieldName}')" ${currentIndex === 0 ? 'disabled' : ''}>
-                ❮
+            <button type="button" class="slider-nav" onclick="sliderPrev('${fieldName}')" ${!canGoPrev ? 'disabled' : ''}>
+                ‹
             </button>
             <div class="slider-content">
                 <div class="slider-image-container">
                     <img src="${images[currentIndex]}" class="slider-image" onclick="viewFullImage('${fieldName}', ${currentIndex})">
-                    <button type="button" class="slider-remove" onclick="removeCapturedImage('${fieldName}', ${currentIndex})">✕</button>
+                    <button type="button" class="slider-remove" onclick="removeCapturedImage('${fieldName}', ${currentIndex})">×</button>
                 </div>
-                <span class="slider-counter">${currentIndex + 1} / ${images.length}</span>
+                <span class="slider-counter">${currentIndex + 1}/${images.length}</span>
             </div>
-            <button type="button" class="slider-nav" onclick="sliderNext('${fieldName}')" ${currentIndex === images.length - 1 ? 'disabled' : ''}>
-                ❯
+            <button type="button" class="slider-nav" onclick="sliderNext('${fieldName}')" ${!canGoNext ? 'disabled' : ''}>
+                ›
             </button>
             <button type="button" class="slider-add-more" onclick="openCamera('${fieldName}')" title="إضافة صورة">+</button>
         </div>

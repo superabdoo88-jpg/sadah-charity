@@ -686,109 +686,165 @@
 
         /* عرض الصور الملتقطة - Slider */
         .captured-images {
-            margin-top: 10px;
+            margin-top: 8px;
         }
 
         .images-slider {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             background: #f8f9fa;
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 6px 10px;
+            border-radius: 6px;
             border: 1px solid #e9ecef;
+            direction: ltr; /* لضمان اتجاه الأسهم الصحيح */
         }
 
         .slider-nav {
             background: none;
-            border: 1px solid #ced4da;
-            color: #495057;
-            width: 28px;
-            height: 28px;
+            border: 1px solid #dee2e6;
+            color: #6c757d;
+            width: 24px;
+            height: 24px;
+            min-width: 24px;
             border-radius: 4px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
+            font-size: 12px;
             transition: all 0.2s;
+            padding: 0;
         }
 
-        .slider-nav:hover {
+        .slider-nav:hover:not(:disabled) {
             background: #e9ecef;
+            border-color: #adb5bd;
         }
 
         .slider-nav:disabled {
-            opacity: 0.4;
+            opacity: 0.3;
             cursor: not-allowed;
         }
 
         .slider-content {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex: 1;
             justify-content: center;
+            direction: rtl; /* إعادة الاتجاه للعربية */
         }
 
         .slider-image-container {
             position: relative;
-            width: 70px;
-            height: 50px;
+            width: 60px;
+            height: 42px;
         }
 
         .slider-image {
-            width: 70px;
-            height: 50px;
+            width: 60px;
+            height: 42px;
             object-fit: cover;
-            border-radius: 4px;
+            border-radius: 3px;
             border: 1px solid #dee2e6;
+            cursor: pointer;
         }
 
         .slider-remove {
             position: absolute;
-            top: -6px;
-            right: -6px;
-            width: 18px;
-            height: 18px;
-            background: #dc3545;
-            color: white;
+            top: -4px;
+            right: -4px;
+            width: 14px;
+            height: 14px;
+            background: transparent;
+            color: #999;
             border: none;
             border-radius: 50%;
-            font-size: 10px;
+            font-size: 11px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             line-height: 1;
+            padding: 0;
+            font-weight: bold;
         }
 
         .slider-remove:hover {
-            background: #c82333;
+            color: #dc3545;
         }
 
         .slider-counter {
-            font-size: 0.8em;
-            color: #6c757d;
-            min-width: 50px;
+            font-size: 0.75em;
+            color: #888;
+            min-width: 35px;
             text-align: center;
+            direction: ltr;
         }
 
         .slider-add-more {
             background: none;
             border: 1px dashed #ced4da;
-            color: #6c757d;
-            width: 50px;
-            height: 50px;
-            border-radius: 4px;
+            color: #999;
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            border-radius: 3px;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 16px;
             transition: all 0.2s;
+            padding: 0;
         }
 
         .slider-add-more:hover {
             border-color: #28a745;
             color: #28a745;
+        }
+
+        /* تحسينات للهواتف */
+        @media (max-width: 480px) {
+            .images-slider {
+                padding: 5px 8px;
+                gap: 4px;
+            }
+            
+            .slider-nav {
+                width: 22px;
+                height: 22px;
+                min-width: 22px;
+                font-size: 11px;
+            }
+            
+            .slider-image-container {
+                width: 50px;
+                height: 35px;
+            }
+            
+            .slider-image {
+                width: 50px;
+                height: 35px;
+            }
+            
+            .slider-add-more {
+                width: 35px;
+                height: 35px;
+                min-width: 35px;
+                font-size: 14px;
+            }
+            
+            .slider-remove {
+                width: 12px;
+                height: 12px;
+                font-size: 10px;
+                top: -3px;
+                right: -3px;
+            }
+            
+            .slider-counter {
+                font-size: 0.7em;
+                min-width: 30px;
+            }
         }
 
         .button-group {
