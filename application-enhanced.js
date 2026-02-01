@@ -158,8 +158,8 @@ function collectFormData() {
     const form = document.getElementById('applicationForm');
     const data = {};
     
-    // جمع جميع الحقول النصية
-    const textInputs = form.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], select');
+    // جمع جميع الحقول النصية والأرقام والهاتف
+    const textInputs = form.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], input[type="email"], select, textarea');
     textInputs.forEach(input => {
         if (input.name) {
             data[input.name] = input.value;
@@ -508,15 +508,44 @@ function getAttachedFilesInfo() {
 
 // عرض معلومات الملفات المرفقة سابقاً
 function displayPreviousFiles(attachedFiles) {
-    if (!attachedFiles) return;
+    if (!attachedFiles || Object.keys(attachedFiles).length === 0) return;
     
     for (const [fieldName, fileNames] of Object.entries(attachedFiles)) {
-        const container = document.getElementById(`${fieldName}-images`);
-        const previewDiv = document.querySelector(`input[name="${fieldName}"]`)?.closest('.upload-item')?.querySelector('.file-preview');
+        if (!fileNames || fileNames.length === 0) continue;
         
-        if (previewDiv && fileNames.length > 0) {
-            previewDiv.textContent = `ملفات سابقة: ${fileNames.join(', ')}`;
-            previewDiv.style.display = 'block';
+        // البحث عن حقل الملف
+        const fileInput = document.querySelector(`input[name="${fieldName}"]`);
+        if (!fileInput) continue;
+        
+        const uploadItem = fileInput.closest('.upload-item');
+        if (!uploadItem) continue;
+        
+        // عرض في preview div
+        let previewDiv = uploadItem.querySelector('.file-preview');
+        if (!previewDiv) {
+            previewDiv = document.createElement('div');
+            previewDiv.className = 'file-preview';
+            uploadItem.appendChild(previewDiv);
+        }
+        
+        // تنسيق أسماء الملفات
+        const filesText = Array.isArray(fileNames) ? fileNames.join('، ') : fileNames;
+        previewDiv.innerHTML = `<span style="color: #17a2b8;">📎 ملفات مرفقة سابقاً:</span> ${filesText}`;
+        previewDiv.style.display = 'block';
+        previewDiv.style.marginTop = '8px';
+        previewDiv.style.padding = '8px';
+        previewDiv.style.background = '#e7f5ff';
+        previewDiv.style.borderRadius = '6px';
+        previewDiv.style.fontSize = '0.85em';
+        
+        // عرض في container الصور إذا وجد
+        const imagesContainer = document.getElementById(`${fieldName}-images`);
+        if (imagesContainer) {
+            imagesContainer.innerHTML = `
+                <div style="background: #f8f9fa; padding: 8px 12px; border-radius: 6px; border: 1px solid #e9ecef; font-size: 0.85em; color: #666;">
+                    📎 ${Array.isArray(fileNames) ? fileNames.length : 1} ملف مرفق سابقاً
+                </div>
+            `;
         }
     }
 }
