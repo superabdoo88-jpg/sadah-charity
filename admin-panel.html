@@ -379,6 +379,27 @@
             color: #721c24;
         }
 
+        /* أنيميشن إخفاء الصف */
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+                max-height: 100px;
+            }
+            to {
+                opacity: 0;
+                transform: translateX(-100%);
+                max-height: 0;
+                padding: 0;
+                margin: 0;
+            }
+        }
+
+        .row-removing {
+            animation: slideOut 0.5s ease-out forwards;
+            overflow: hidden;
+        }
+
         @media (max-width: 768px) {
             .requests-table {
                 overflow-x: auto;
@@ -475,13 +496,43 @@
         </div>
     </div>
 
+    <!-- Modal لكتابة سبب الرفض -->
+    <div class="modal" id="rejectModal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header" style="background: #f8d7da; border-radius: 12px 12px 0 0;">
+                <h3 style="color: #721c24;">رفض الطلب</h3>
+                <button class="close-btn" onclick="closeRejectModal()">&times;</button>
+            </div>
+            <div style="padding: 20px;">
+                <p style="margin-bottom: 15px; color: #666;">
+                    هل أنت متأكد من رفض الطلب رقم: <strong id="rejectRequestId"></strong>؟
+                </p>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                        سبب الرفض <span style="font-weight: normal; color: #888;">(اختياري)</span>
+                    </label>
+                    <textarea id="rejectReason" rows="3" placeholder="اكتب سبب الرفض ليصل للمتقدم في الإيميل..."
+                        style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Tajawal', sans-serif; resize: vertical;"></textarea>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn btn-reject" style="flex: 1; padding: 12px;" onclick="confirmReject()">
+                        تأكيد الرفض
+                    </button>
+                    <button class="btn" style="flex: 1; padding: 12px; background: #6c757d; color: white;" onclick="closeRejectModal()">
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // رابط Google Apps Script - نفس الرابط المستخدم في الاستمارة
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqs_uG2C1iD6ZFJfCs1jp_LTsfpKBffUjmdgchOS_l3o4OJmAsWb8BinKsEskoaLXS/exec';
         
-        // روابط Google Sheets و Drive - قم بتحديثها بالروابط الصحيحة
-        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit';
-        const GOOGLE_DRIVE_FOLDER = 'https://drive.google.com/drive/folders/YOUR_FOLDER_ID';
+        // روابط Google Sheets و Drive
+        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1xB5dXoYdVd9TjG9F0U4__JyFeBoHfxcC4WFuhBAqYxs/edit';
+        const GOOGLE_DRIVE_FOLDER = 'https://drive.google.com/drive/folders/1XZhJiKee5Wj_yDwmP_ZbjK8kBlNadyWg';
         
         let allRequests = [];
         let isLoading = false;
@@ -655,7 +706,7 @@
                     <button class="btn btn-approve btn-large" onclick="updateStatusAndClose('${request.requestId}', 'approved')">
                         ✓ اعتماد الطلب
                     </button>
-                    <button class="btn btn-reject btn-large" onclick="updateStatusAndClose('${request.requestId}', 'rejected')">
+                    <button class="btn btn-reject btn-large" onclick="openRejectModal('${request.requestId}')">
                         ✗ رفض الطلب
                     </button>
                 </div>
@@ -743,12 +794,13 @@
             document.getElementById('detailsModal').classList.add('show');
         }
 
-        async function updateStatusAndClose(requestId, newStatus) {
-            const confirmMsg = newStatus === 'approved' 
-                ? 'هل تريد اعتماد هذا الطلب؟' 
-                : 'هل تريد رفض هذا الطلب؟';
-            
-            if (!confirm(confirmMsg)) return;
+        // متغير لحفظ رقم الطلب المراد رفضه
+        let currentRejectRequestId = null;
+
+        async function updateStatusAndClose(requestId, newStatus, rejectReason = '') {
+            if (newStatus === 'approved') {
+                if (!confirm('هل تريد اعتماد هذا الطلب؟')) return;
+            }
 
             try {
                 const response = await fetch(GOOGLE_SCRIPT_URL, {
@@ -759,7 +811,8 @@
                         action: 'updateStatus',
                         requestId: requestId,
                         adminStatus: newStatus,
-                        adminActionDate: new Date().toLocaleDateString('ar-SA')
+                        adminActionDate: new Date().toLocaleDateString('ar-SA'),
+                        rejectReason: rejectReason
                     })
                 });
                 
@@ -770,14 +823,56 @@
                 }
                 
                 closeModal();
+                closeRejectModal();
                 updateStats();
-                filterRequests();
+                
+                // أنيميشن إخفاء الصف للطلبات المرفوضة
+                if (newStatus === 'rejected') {
+                    animateRowRemoval(requestId);
+                } else {
+                    filterRequests();
+                }
                 
                 alert(newStatus === 'approved' ? '✓ تم اعتماد الطلب بنجاح' : 'تم رفض الطلب');
             } catch (error) {
                 console.error('خطأ في تحديث الحالة:', error);
                 alert('حدث خطأ أثناء تحديث الحالة');
             }
+        }
+
+        // أنيميشن إخفاء الصف
+        function animateRowRemoval(requestId) {
+            const rows = document.querySelectorAll('#requestsBody tr');
+            rows.forEach(row => {
+                if (row.innerHTML.includes(requestId)) {
+                    row.classList.add('row-removing');
+                    setTimeout(() => {
+                        filterRequests();
+                    }, 500);
+                }
+            });
+        }
+
+        // فتح نافذة الرفض
+        function openRejectModal(requestId) {
+            currentRejectRequestId = requestId;
+            document.getElementById('rejectRequestId').textContent = requestId;
+            document.getElementById('rejectReason').value = '';
+            document.getElementById('rejectModal').classList.add('show');
+        }
+
+        // إغلاق نافذة الرفض
+        function closeRejectModal() {
+            document.getElementById('rejectModal').classList.remove('show');
+            currentRejectRequestId = null;
+        }
+
+        // تأكيد الرفض
+        async function confirmReject() {
+            if (!currentRejectRequestId) return;
+            
+            const rejectReason = document.getElementById('rejectReason').value.trim();
+            await updateStatusAndClose(currentRejectRequestId, 'rejected', rejectReason);
         }
 
         function closeModal() {
@@ -788,6 +883,12 @@
         document.getElementById('detailsModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeModal();
+            }
+        });
+
+        document.getElementById('rejectModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeRejectModal();
             }
         });
     </script>
