@@ -732,12 +732,17 @@ function simulateApproval(requestId) {
 let currentCameraField = null;
 let cameraStream = null;
 let capturedImages = {}; // تخزين الصور الملتقطة لكل حقل
+let sliderIndexes = {}; // تتبع الصورة الحالية في كل slider
 
 function openCamera(fieldName) {
     currentCameraField = fieldName;
     const modal = document.getElementById('cameraModal');
     const video = document.getElementById('cameraVideo');
     const preview = document.getElementById('cameraPreview');
+    const header = document.getElementById('cameraHeader');
+    
+    // تحديث العنوان
+    header.textContent = getFieldLabel(fieldName);
     
     // إخفاء المعاينة وإظهار الفيديو
     video.style.display = 'block';
@@ -748,23 +753,46 @@ function openCamera(fieldName) {
     document.getElementById('retakeBtn').style.display = 'none';
     document.getElementById('usePhotoBtn').style.display = 'none';
     
-    // فتح الكاميرا
-    navigator.mediaDevices.getUserMedia({ 
-        video: { 
-            facingMode: 'environment', // الكاميرا الخلفية للهواتف
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-        } 
-    })
+    // فتح الكاميرا بالحجم الطبيعي (1x zoom)
+    const constraints = {
+        video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            aspectRatio: { ideal: 4/3 },
+            // منع التكبير التلقائي
+            advanced: [{ zoom: 1.0 }]
+        }
+    };
+    
+    navigator.mediaDevices.getUserMedia(constraints)
     .then(stream => {
         cameraStream = stream;
         video.srcObject = stream;
+        
+        // محاولة ضبط zoom إلى 1x إذا كان مدعوماً
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (capabilities.zoom) {
+            track.applyConstraints({ advanced: [{ zoom: 1.0 }] }).catch(() => {});
+        }
+        
         modal.classList.add('show');
     })
     .catch(err => {
         console.error('خطأ في فتح الكاميرا:', err);
-        alert('⚠️ لا يمكن الوصول إلى الكاميرا.\n\nتأكد من:\n- السماح للموقع بالوصول للكاميرا\n- استخدام متصفح حديث\n- الاتصال عبر HTTPS');
+        alert('لا يمكن الوصول إلى الكاميرا.\n\nتأكد من السماح للموقع بالوصول للكاميرا.');
     });
+}
+
+function getFieldLabel(fieldName) {
+    const labels = {
+        'requestLetter': 'رسالة التقديم',
+        'personalId': 'البطاقة الشخصية',
+        'bankCard': 'بطاقة البنك',
+        'familyIds': 'بطاقات العائلة'
+    };
+    return labels[fieldName] || 'تصوير المستند';
 }
 
 function capturePhoto() {
@@ -772,7 +800,7 @@ function capturePhoto() {
     const canvas = document.getElementById('cameraCanvas');
     const preview = document.getElementById('cameraPreview');
     
-    // ضبط حجم الكانفاس
+    // ضبط حجم الكانفاس بناءً على حجم الفيديو الفعلي
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
@@ -781,11 +809,11 @@ function capturePhoto() {
     // رسم الصورة
     ctx.drawImage(video, 0, 0);
     
-    // تحسين الصورة (زيادة التباين والحدة للمستندات)
+    // تحسين الصورة للمستندات
     enhanceDocumentImage(ctx, canvas.width, canvas.height);
     
-    // تحويل إلى صورة
-    const imageData = canvas.toDataURL('image/jpeg', 0.9);
+    // تحويل إلى صورة بجودة عالية
+    const imageData = canvas.toDataURL('image/jpeg', 0.92);
     preview.src = imageData;
     
     // إخفاء الفيديو وإظهار المعاينة
@@ -799,19 +827,29 @@ function capturePhoto() {
 }
 
 function enhanceDocumentImage(ctx, width, height) {
-    // الحصول على بيانات الصورة
     const imageData = ctx.getImageData(0, 0, width, height);
     const data = imageData.data;
     
-    // تحسين التباين والسطوع للمستندات
-    const contrast = 1.2; // زيادة التباين
-    const brightness = 10; // زيادة طفيفة في السطوع
+    // تحسينات للمستندات: زيادة التباين وتفتيح الخلفية
+    const contrast = 1.15;
+    const brightness = 8;
+    const saturation = 0.9; // تقليل التشبع قليلاً للمستندات
     
     for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+        
+        // تقليل التشبع
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        r = gray + saturation * (r - gray);
+        g = gray + saturation * (g - gray);
+        b = gray + saturation * (b - gray);
+        
         // تطبيق التباين والسطوع
-        data[i] = Math.min(255, Math.max(0, ((data[i] - 128) * contrast) + 128 + brightness));     // R
-        data[i+1] = Math.min(255, Math.max(0, ((data[i+1] - 128) * contrast) + 128 + brightness)); // G
-        data[i+2] = Math.min(255, Math.max(0, ((data[i+2] - 128) * contrast) + 128 + brightness)); // B
+        data[i] = Math.min(255, Math.max(0, ((r - 128) * contrast) + 128 + brightness));
+        data[i + 1] = Math.min(255, Math.max(0, ((g - 128) * contrast) + 128 + brightness));
+        data[i + 2] = Math.min(255, Math.max(0, ((b - 128) * contrast) + 128 + brightness));
     }
     
     ctx.putImageData(imageData, 0, 0);
@@ -821,11 +859,9 @@ function retakePhoto() {
     const video = document.getElementById('cameraVideo');
     const preview = document.getElementById('cameraPreview');
     
-    // إظهار الفيديو وإخفاء المعاينة
     video.style.display = 'block';
     preview.style.display = 'none';
     
-    // تحديث الأزرار
     document.getElementById('captureBtn').style.display = 'inline-block';
     document.getElementById('retakeBtn').style.display = 'none';
     document.getElementById('usePhotoBtn').style.display = 'none';
@@ -841,38 +877,108 @@ function usePhoto() {
     }
     capturedImages[currentCameraField].push(imageData);
     
-    // عرض الصورة المصغرة
-    displayCapturedImages(currentCameraField);
+    // تهيئة index الـ slider
+    if (sliderIndexes[currentCameraField] === undefined) {
+        sliderIndexes[currentCameraField] = 0;
+    }
+    sliderIndexes[currentCameraField] = capturedImages[currentCameraField].length - 1;
     
-    // تحويل الصورة إلى ملف وإضافتها للحقل
+    // عرض الصور في slider
+    displayCapturedImagesSlider(currentCameraField);
+    
+    // تحويل الصورة إلى ملف
     addImageToFileInput(currentCameraField, imageData);
     
     // إغلاق الكاميرا
     closeCamera();
 }
 
-function displayCapturedImages(fieldName) {
+function displayCapturedImagesSlider(fieldName) {
     const container = document.getElementById(`${fieldName}-images`);
     if (!container) return;
     
-    container.innerHTML = '';
+    const images = capturedImages[fieldName] || [];
     
-    if (capturedImages[fieldName]) {
-        capturedImages[fieldName].forEach((imgData, index) => {
-            const img = document.createElement('img');
-            img.src = imgData;
-            img.className = 'captured-image-thumb';
-            img.title = `صورة ${index + 1} - انقر للحذف`;
-            img.onclick = () => removeCapturedImage(fieldName, index);
-            container.appendChild(img);
-        });
+    if (images.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    const currentIndex = sliderIndexes[fieldName] || 0;
+    
+    container.innerHTML = `
+        <div class="images-slider">
+            <button type="button" class="slider-nav" onclick="sliderPrev('${fieldName}')" ${currentIndex === 0 ? 'disabled' : ''}>
+                ❮
+            </button>
+            <div class="slider-content">
+                <div class="slider-image-container">
+                    <img src="${images[currentIndex]}" class="slider-image" onclick="viewFullImage('${fieldName}', ${currentIndex})">
+                    <button type="button" class="slider-remove" onclick="removeCapturedImage('${fieldName}', ${currentIndex})">✕</button>
+                </div>
+                <span class="slider-counter">${currentIndex + 1} / ${images.length}</span>
+            </div>
+            <button type="button" class="slider-nav" onclick="sliderNext('${fieldName}')" ${currentIndex === images.length - 1 ? 'disabled' : ''}>
+                ❯
+            </button>
+            <button type="button" class="slider-add-more" onclick="openCamera('${fieldName}')" title="إضافة صورة">+</button>
+        </div>
+    `;
+}
+
+function sliderPrev(fieldName) {
+    if (sliderIndexes[fieldName] > 0) {
+        sliderIndexes[fieldName]--;
+        displayCapturedImagesSlider(fieldName);
+    }
+}
+
+function sliderNext(fieldName) {
+    const images = capturedImages[fieldName] || [];
+    if (sliderIndexes[fieldName] < images.length - 1) {
+        sliderIndexes[fieldName]++;
+        displayCapturedImagesSlider(fieldName);
+    }
+}
+
+function viewFullImage(fieldName, index) {
+    const images = capturedImages[fieldName] || [];
+    if (images[index]) {
+        window.open(images[index], '_blank');
     }
 }
 
 function removeCapturedImage(fieldName, index) {
-    if (confirm('هل تريد حذف هذه الصورة؟')) {
-        capturedImages[fieldName].splice(index, 1);
-        displayCapturedImages(fieldName);
+    capturedImages[fieldName].splice(index, 1);
+    
+    // تحديث الملفات المخزنة
+    if (window.capturedFiles && window.capturedFiles[fieldName]) {
+        window.capturedFiles[fieldName].splice(index, 1);
+    }
+    
+    // تعديل index إذا لزم الأمر
+    if (sliderIndexes[fieldName] >= capturedImages[fieldName].length) {
+        sliderIndexes[fieldName] = Math.max(0, capturedImages[fieldName].length - 1);
+    }
+    
+    displayCapturedImagesSlider(fieldName);
+    updateFilePreview(fieldName);
+}
+
+function updateFilePreview(fieldName) {
+    const fileInput = document.querySelector(`input[name="${fieldName}"]`);
+    if (fileInput) {
+        const previewDiv = fileInput.closest('.upload-item').querySelector('.file-preview');
+        if (previewDiv) {
+            const count = (window.capturedFiles && window.capturedFiles[fieldName]) ? 
+                          window.capturedFiles[fieldName].length : 0;
+            if (count > 0) {
+                previewDiv.textContent = `${count} صورة ملتقطة`;
+                previewDiv.style.display = 'block';
+            } else {
+                previewDiv.style.display = 'none';
+            }
+        }
     }
 }
 
@@ -888,9 +994,9 @@ function addImageToFileInput(fieldName, imageData) {
     }
     
     const blob = new Blob([ab], { type: mimeString });
-    const file = new File([blob], `captured_${fieldName}_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    const file = new File([blob], `scan_${fieldName}_${Date.now()}.jpg`, { type: 'image/jpeg' });
     
-    // تخزين الملف للإرسال لاحقاً
+    // تخزين الملف
     if (!window.capturedFiles) {
         window.capturedFiles = {};
     }
@@ -899,23 +1005,13 @@ function addImageToFileInput(fieldName, imageData) {
     }
     window.capturedFiles[fieldName].push(file);
     
-    // تحديث معاينة الملف
-    const fileInput = document.querySelector(`input[name="${fieldName}"]`);
-    if (fileInput) {
-        const previewDiv = fileInput.closest('.upload-item').querySelector('.file-preview');
-        if (previewDiv) {
-            const count = window.capturedFiles[fieldName].length;
-            previewDiv.textContent = `✓ تم التقاط ${count} صورة`;
-            previewDiv.style.display = 'block';
-        }
-    }
+    updateFilePreview(fieldName);
 }
 
 function closeCamera() {
     const modal = document.getElementById('cameraModal');
     modal.classList.remove('show');
     
-    // إيقاف الكاميرا
     if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
         cameraStream = null;
@@ -975,3 +1071,7 @@ window.capturePhoto = capturePhoto;
 window.retakePhoto = retakePhoto;
 window.usePhoto = usePhoto;
 window.closeCamera = closeCamera;
+window.sliderPrev = sliderPrev;
+window.sliderNext = sliderNext;
+window.viewFullImage = viewFullImage;
+window.removeCapturedImage = removeCapturedImage;
