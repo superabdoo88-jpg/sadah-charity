@@ -847,6 +847,74 @@
             }
         }
 
+        /* قسم البحث عن طلب */
+        .search-request-section {
+            max-width: 500px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 8px;
+            background: white;
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .search-box input {
+            flex: 1;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 0.95em;
+            font-family: 'Tajawal', sans-serif;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .search-box button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Tajawal', sans-serif;
+            font-weight: 500;
+            flex: none;
+        }
+
+        .search-box button:hover {
+            background: #1a4a1b;
+        }
+
+        .search-result {
+            margin-top: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            display: none;
+        }
+
+        .search-result.found {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .search-result.not-found {
+            display: block;
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #e9ecef;
+        }
+
         .button-group {
             display: flex;
             gap: 15px;
@@ -1076,6 +1144,15 @@
             </div>
         </div>
 
+        <!-- قسم البحث عن طلب -->
+        <div class="search-request-section">
+            <div class="search-box">
+                <input type="text" id="searchRequestInput" placeholder="ابحث برقم الطلب أو الرقم المدني">
+                <button type="button" onclick="searchRequest()">بحث</button>
+            </div>
+            <div id="searchResult" class="search-result"></div>
+        </div>
+
         <!-- قسم الطلبات المرسلة -->
         <div class="my-requests-section" id="myRequestsSection">
             <h3 style="margin-bottom: 20px; color: var(--primary-color);">📋 طلباتي المرسلة</h3>
@@ -1152,7 +1229,6 @@
                     <div class="applicant-info">
                         <input type="text" name="applicantName" id="applicantName" placeholder="الاسم">
                         <input type="text" name="applicantPhone" id="applicantPhone" placeholder="رقم الهاتف">
-                        <input type="text" name="applicantSignature" id="applicantSignature" placeholder="التوقيع">
                     </div>
                 </div>
 

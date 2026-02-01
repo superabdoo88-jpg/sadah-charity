@@ -429,13 +429,40 @@ async function fileToBase64(file) {
 }
 
 // ===============================================
+// إنشاء رقم طلب تسلسلي
+// ===============================================
+function generateRequestId() {
+    const requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
+    
+    // الحصول على التاريخ الحالي بتنسيق YYYYMMDD
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}${month}${day}`;
+    
+    // البحث عن أعلى رقم تسلسلي لهذا اليوم
+    let maxSeq = 0;
+    requests.forEach(req => {
+        if (req.requestId && req.requestId.startsWith(`req-${dateStr}-`)) {
+            const seq = parseInt(req.requestId.split('-')[2]) || 0;
+            if (seq > maxSeq) maxSeq = seq;
+        }
+    });
+    
+    // إنشاء الرقم الجديد
+    const newSeq = maxSeq + 1;
+    return `req-${dateStr}-${newSeq}`;
+}
+
+// ===============================================
 // حفظ الطلب محلياً
 // ===============================================
 function saveRequestLocally(data) {
     let requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
     
-    // إنشاء معرّف فريد للطلب
-    const requestId = data.requestId || 'req_' + Date.now();
+    // إنشاء معرّف فريد للطلب بالتنسيق الجديد
+    const requestId = data.requestId || generateRequestId();
     
     // التحقق من وجود الطلب (تحديث)
     const existingIndex = requests.findIndex(r => r.requestId === requestId);
@@ -1171,23 +1198,54 @@ function closeCamera() {
 // ===============================================
 // التحقق من وجود طلب سابق لنفس الرقم المدني
 // ===============================================
+let lastCheckedCivilId = '';
+
 function checkPreviousCivilIdRequest() {
     const civilIdInput = document.getElementById('civilId');
     if (!civilIdInput) return;
     
-    civilIdInput.addEventListener('blur', function() {
-        const civilId = this.value.trim();
-        if (!civilId) return;
-        
-        const requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
-        const existingRequest = requests.find(r => r.civilId === civilId);
-        
-        if (existingRequest) {
-            const warningDiv = document.getElementById('civilIdWarning') || createWarningDiv();
-            warningDiv.innerHTML = `⚠️ تنبيه: يوجد طلب سابق مرسل بهذا الرقم المدني (طلب رقم: ${existingRequest.requestId})`;
-            warningDiv.style.display = 'block';
+    // إخفاء التنبيه فوراً عند الكتابة
+    civilIdInput.addEventListener('input', function() {
+        const warningDiv = document.getElementById('civilIdWarning');
+        if (warningDiv) {
+            warningDiv.style.display = 'none';
         }
     });
+    
+    // التحقق عند مغادرة الحقل
+    civilIdInput.addEventListener('blur', function() {
+        checkCivilIdAndShowWarning(this.value.trim());
+    });
+}
+
+function checkCivilIdAndShowWarning(civilId) {
+    const warningDiv = document.getElementById('civilIdWarning') || createWarningDiv();
+    
+    // إخفاء التنبيه إذا كان الحقل فارغاً
+    if (!civilId) {
+        warningDiv.style.display = 'none';
+        lastCheckedCivilId = '';
+        return;
+    }
+    
+    // تجنب التحقق المتكرر لنفس الرقم
+    if (civilId === lastCheckedCivilId) {
+        return;
+    }
+    lastCheckedCivilId = civilId;
+    
+    const requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
+    
+    // التحقق من وضع التعديل - لا نظهر تنبيه للطلب الحالي
+    const currentRequestId = document.getElementById('requestId')?.value;
+    const existingRequest = requests.find(r => r.civilId === civilId && r.requestId !== currentRequestId);
+    
+    if (existingRequest) {
+        warningDiv.innerHTML = `تنبيه: يوجد طلب سابق بهذا الرقم المدني (${existingRequest.requestId})`;
+        warningDiv.style.display = 'block';
+    } else {
+        warningDiv.style.display = 'none';
+    }
 }
 
 function createWarningDiv() {
@@ -1202,6 +1260,121 @@ function createWarningDiv() {
 // تفعيل التحقق عند تحميل الصفحة
 window.addEventListener('load', function() {
     setTimeout(checkPreviousCivilIdRequest, 100);
+});
+
+// ===============================================
+// البحث عن طلب
+// ===============================================
+function searchRequest() {
+    const searchInput = document.getElementById('searchRequestInput');
+    const resultDiv = document.getElementById('searchResult');
+    const searchValue = searchInput.value.trim();
+    
+    if (!searchValue) {
+        resultDiv.className = 'search-result';
+        resultDiv.style.display = 'none';
+        return;
+    }
+    
+    const requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
+    
+    // البحث برقم الطلب أو الرقم المدني
+    const foundRequest = requests.find(r => 
+        r.requestId === searchValue || 
+        r.civilId === searchValue ||
+        r.requestId?.includes(searchValue) ||
+        r.civilId?.includes(searchValue)
+    );
+    
+    if (foundRequest) {
+        const statusText = getStatusText(foundRequest);
+        const canEditRequest = canEdit(foundRequest);
+        
+        let editButton = '';
+        if (canEditRequest) {
+            editButton = `
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #c3e6cb;">
+                    <button type="button" onclick="editRequestFromSearch('${foundRequest.requestId}')" 
+                        style="background: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: 'Tajawal', sans-serif;">
+                        تعديل الطلب
+                    </button>
+                    <div style="font-size: 0.8em; color: #666; margin-top: 6px;">
+                        ⚠️ التعديل متاح لمرة واحدة فقط
+                    </div>
+                </div>
+            `;
+        } else {
+            editButton = `
+                <div style="margin-top: 10px; font-size: 0.85em; color: #856404;">
+                    🔒 تم استخدام فرصة التعديل المتاحة
+                </div>
+            `;
+        }
+        
+        resultDiv.className = 'search-result found';
+        resultDiv.innerHTML = `
+            <strong>تم العثور على الطلب</strong><br>
+            رقم الطلب: ${foundRequest.requestId}<br>
+            الاسم: ${foundRequest.name}<br>
+            الحالة: ${statusText}<br>
+            تاريخ الإرسال: ${foundRequest.submissionDate}
+            ${editButton}
+        `;
+    } else {
+        resultDiv.className = 'search-result not-found';
+        resultDiv.innerHTML = 'لم يتم العثور على طلب بهذا الرقم';
+    }
+}
+
+// تعديل الطلب من نتيجة البحث
+function editRequestFromSearch(requestId) {
+    const requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
+    const request = requests.find(r => r.requestId === requestId);
+    
+    if (!request) {
+        alert('لم يتم العثور على الطلب');
+        return;
+    }
+    
+    if (!canEdit(request)) {
+        alert('لا يمكن تعديل هذا الطلب.\n\nتم استنفاد عدد مرات التعديل المسموحة (مرة واحدة فقط).');
+        return;
+    }
+    
+    // تفعيل وضع التعديل
+    document.getElementById('editMode').value = 'true';
+    document.getElementById('requestId').value = requestId;
+    
+    // إظهار بانر التعديل
+    const banner = document.getElementById('editModeBanner');
+    document.getElementById('editRequestNumber').textContent = requestId;
+    banner.classList.add('show');
+    
+    // تغيير نص زر الإرسال
+    document.getElementById('submitText').textContent = 'تحديث الطلب';
+    
+    // ملء النموذج بالبيانات المحفوظة
+    fillFormWithRequestData(request);
+    
+    // إخفاء نتيجة البحث
+    document.getElementById('searchResult').style.display = 'none';
+    document.getElementById('searchRequestInput').value = '';
+    
+    // التمرير للنموذج
+    window.scrollTo({ top: document.querySelector('.form-section').offsetTop - 20, behavior: 'smooth' });
+}
+
+// البحث عند الضغط على Enter
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchRequestInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchRequest();
+            }
+        });
+    }
 });
 
 // ===============================================
@@ -1223,3 +1396,5 @@ window.sliderPrev = sliderPrev;
 window.sliderNext = sliderNext;
 window.viewFullImage = viewFullImage;
 window.removeCapturedImage = removeCapturedImage;
+window.searchRequest = searchRequest;
+window.editRequestFromSearch = editRequestFromSearch;
