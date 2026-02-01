@@ -542,34 +542,35 @@
         /* أزرار الكاميرا والملفات */
         .upload-options {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
-            margin-top: 10px;
+            margin-top: 8px;
+            align-items: center;
         }
 
         .btn-camera {
-            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 8px;
+            background: #f8f9fa;
+            color: #495057;
+            border: 1px solid #ced4da;
+            padding: 8px 14px;
+            border-radius: 6px;
             cursor: pointer;
-            font-family: 'Cairo', sans-serif;
-            font-weight: 600;
-            font-size: 0.9em;
+            font-family: 'Tajawal', sans-serif;
+            font-weight: 500;
+            font-size: 0.85em;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            transition: all 0.3s ease;
+            gap: 5px;
+            transition: all 0.2s ease;
         }
 
         .btn-camera:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow);
+            background: #e9ecef;
+            border-color: #adb5bd;
         }
 
         .btn-camera:active {
-            transform: translateY(0);
+            background: #dee2e6;
         }
 
         /* نافذة الكاميرا */
@@ -580,27 +581,38 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.95);
             z-index: 2000;
             justify-content: center;
             align-items: center;
             flex-direction: column;
+            padding: 20px;
         }
 
         .camera-modal.show {
             display: flex;
         }
 
+        .camera-header {
+            color: white;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
         .camera-container {
             position: relative;
-            max-width: 90%;
-            max-height: 70vh;
+            width: 100%;
+            max-width: 500px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
         }
 
         .camera-video {
-            max-width: 100%;
-            max-height: 60vh;
-            border-radius: 12px;
+            width: 100%;
+            height: auto;
+            display: block;
             background: #000;
         }
 
@@ -609,76 +621,174 @@
         }
 
         .camera-preview {
-            max-width: 100%;
-            max-height: 60vh;
-            border-radius: 12px;
+            width: 100%;
+            height: auto;
             display: none;
         }
 
         .camera-controls {
             display: flex;
-            gap: 15px;
+            gap: 12px;
             margin-top: 20px;
             justify-content: center;
-            flex-wrap: wrap;
         }
 
         .camera-btn {
-            padding: 15px 30px;
+            padding: 10px 20px;
             border: none;
-            border-radius: 50px;
-            font-size: 1em;
-            font-weight: 600;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Cairo', sans-serif;
+            transition: all 0.2s ease;
+            font-family: 'Tajawal', sans-serif;
         }
 
         .camera-btn-capture {
-            background: var(--success-color);
-            color: white;
+            background: #fff;
+            color: #333;
+        }
+
+        .camera-btn-capture:hover {
+            background: #f0f0f0;
         }
 
         .camera-btn-retake {
-            background: var(--warning-color);
-            color: #856404;
+            background: #6c757d;
+            color: white;
             display: none;
+        }
+
+        .camera-btn-retake:hover {
+            background: #5a6268;
         }
 
         .camera-btn-use {
-            background: var(--primary-color);
+            background: #28a745;
             color: white;
             display: none;
         }
 
+        .camera-btn-use:hover {
+            background: #218838;
+        }
+
         .camera-btn-close {
-            background: var(--error-color);
-            color: white;
+            background: transparent;
+            color: #aaa;
+            border: 1px solid #555;
         }
 
-        .camera-btn:hover {
-            transform: scale(1.05);
+        .camera-btn-close:hover {
+            background: #333;
+            color: #fff;
         }
 
-        /* معاينة الصورة الملتقطة */
+        /* عرض الصور الملتقطة - Slider */
         .captured-images {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
             margin-top: 10px;
         }
 
-        .captured-image-thumb {
-            width: 80px;
-            height: 80px;
-            object-fit: cover;
+        .images-slider {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f8f9fa;
+            padding: 8px 12px;
             border-radius: 8px;
-            border: 2px solid var(--border-color);
-            cursor: pointer;
+            border: 1px solid #e9ecef;
         }
 
-        .captured-image-thumb:hover {
-            border-color: var(--primary-color);
+        .slider-nav {
+            background: none;
+            border: 1px solid #ced4da;
+            color: #495057;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .slider-nav:hover {
+            background: #e9ecef;
+        }
+
+        .slider-nav:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .slider-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .slider-image-container {
+            position: relative;
+            width: 70px;
+            height: 50px;
+        }
+
+        .slider-image {
+            width: 70px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .slider-remove {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 18px;
+            height: 18px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .slider-remove:hover {
+            background: #c82333;
+        }
+
+        .slider-counter {
+            font-size: 0.8em;
+            color: #6c757d;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .slider-add-more {
+            background: none;
+            border: 1px dashed #ced4da;
+            color: #6c757d;
+            width: 50px;
+            height: 50px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .slider-add-more:hover {
+            border-color: #28a745;
+            color: #28a745;
         }
 
         .button-group {
@@ -866,6 +976,7 @@
 
     <!-- نافذة الكاميرا -->
     <div class="camera-modal" id="cameraModal">
+        <div class="camera-header" id="cameraHeader">تصوير المستند</div>
         <div class="camera-container">
             <video class="camera-video" id="cameraVideo" autoplay playsinline></video>
             <canvas class="camera-canvas" id="cameraCanvas"></canvas>
@@ -873,16 +984,16 @@
         </div>
         <div class="camera-controls">
             <button type="button" class="camera-btn camera-btn-capture" id="captureBtn" onclick="capturePhoto()">
-                📷 التقاط
+                التقاط
             </button>
             <button type="button" class="camera-btn camera-btn-retake" id="retakeBtn" onclick="retakePhoto()">
-                🔄 إعادة التصوير
+                إعادة
             </button>
             <button type="button" class="camera-btn camera-btn-use" id="usePhotoBtn" onclick="usePhoto()">
-                ✓ استخدام الصورة
+                حفظ
             </button>
             <button type="button" class="camera-btn camera-btn-close" onclick="closeCamera()">
-                ✕ إغلاق
+                إغلاق
             </button>
         </div>
     </div>
