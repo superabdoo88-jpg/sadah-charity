@@ -18,6 +18,8 @@ const CONFIG = {
 let deviceId = null;
 let autoSaveTimer = null;
 let isOnline = navigator.onLine;
+let hasUnsavedChanges = false; // تتبع التغييرات غير المحفوظة
+let lastFormData = ''; // للمقارنة
 
 // ===============================================
 // التهيئة عند تحميل الصفحة
@@ -84,19 +86,25 @@ function displayCurrentDate() {
 // الحفظ التلقائي
 // ===============================================
 function startAutoSave() {
+    // حفظ البيانات الحالية للمقارنة
+    lastFormData = JSON.stringify(collectFormData());
+    
     // حفظ عند أي تغيير في الحقول
     const form = document.getElementById('applicationForm');
     const inputs = form.querySelectorAll('input, select, textarea');
     
     inputs.forEach(input => {
         input.addEventListener('input', () => {
+            hasUnsavedChanges = true;
             debouncedAutoSave();
         });
     });
     
-    // حفظ دوري كل 30 ثانية
+    // حفظ دوري كل 30 ثانية - فقط إذا كان هناك تغييرات
     autoSaveTimer = setInterval(() => {
-        autoSaveFormData();
+        if (hasUnsavedChanges) {
+            autoSaveFormData();
+        }
     }, CONFIG.autoSaveInterval);
 }
 
@@ -111,10 +119,20 @@ function debouncedAutoSave() {
 
 function autoSaveFormData() {
     const formData = collectFormData();
+    const currentFormData = JSON.stringify(formData);
+    
+    // التحقق من وجود تغييرات فعلية
+    if (currentFormData === lastFormData) {
+        return; // لا توجد تغييرات، لا تعرض التنبيه
+    }
     
     // حفظ في localStorage
     localStorage.setItem(CONFIG.tempDataKey, JSON.stringify(formData));
     localStorage.setItem(CONFIG.lastSaveKey, new Date().toISOString());
+    
+    // تحديث البيانات الأخيرة
+    lastFormData = currentFormData;
+    hasUnsavedChanges = false;
     
     // إظهار مؤشر الحفظ
     showAutosaveIndicator();
@@ -286,11 +304,24 @@ function setupFormSubmission() {
                 data.isEdit = true;
             }
             
-            // معالجة الملفات
+            // معالجة الملفات (من input file)
             const files = {};
             for (let [key, value] of formData.entries()) {
                 if (value instanceof File && value.size > 0) {
                     files[key] = await fileToBase64(value);
+                }
+            }
+            
+            // إضافة الصور الملتقطة بالكاميرا
+            if (window.capturedFiles) {
+                for (let [fieldName, fileList] of Object.entries(window.capturedFiles)) {
+                    for (let i = 0; i < fileList.length; i++) {
+                        const file = fileList[i];
+                        const key = fileList.length > 1 ? `${fieldName}_${i+1}` : fieldName;
+                        if (!files[key]) {
+                            files[key] = await fileToBase64(file);
+                        }
+                    }
                 }
             }
             
@@ -385,15 +416,19 @@ function saveRequestLocally(data) {
     // التحقق من وجود الطلب (تحديث)
     const existingIndex = requests.findIndex(r => r.requestId === requestId);
     
+    const existingRequest = requests.find(r => r.requestId === requestId);
+    const currentEditCount = existingRequest ? (existingRequest.editCount || 0) : 0;
+    
     const requestData = {
         requestId: requestId,
         name: data.name,
         civilId: data.civilId,
         phone: data.phone,
         submissionDate: data.submissionDate,
-        status: 'pending', // pending, approved
-        approved: false,
-        approvedDate: null,
+        status: data.isEdit ? 'edited' : 'pending', // pending, edited, sent
+        emailOpened: existingRequest ? existingRequest.emailOpened : false,
+        emailOpenedDate: existingRequest ? existingRequest.emailOpenedDate : null,
+        editCount: data.isEdit ? currentEditCount + 1 : 0,
         deviceId: deviceId,
         lastModified: new Date().toISOString()
     };
@@ -438,9 +473,10 @@ function displayMyRequests() {
     
     requestsList.innerHTML = requests.map(request => `
         <div class="request-card">
-            <div class="request-status ${request.approved ? 'status-approved' : (canEdit(request) ? 'status-editable' : 'status-pending')}">
-                ${request.approved ? '✓ معتمد' : (canEdit(request) ? '🔧 قابل للتعديل' : '⏳ قيد المراجعة')}
+            <div class="request-status ${getStatusClass(request)}">
+                ${getStatusText(request)}
             </div>
+            ${request.editCount > 0 ? '<div class="edited-badge">طلب معدّل</div>' : ''}
             
             <div class="request-info">
                 <strong>الاسم:</strong> ${request.name}
@@ -478,11 +514,43 @@ function updateRequestCount() {
 }
 
 // ===============================================
+// دوال مساعدة لعرض حالة الطلب
+// ===============================================
+function getStatusClass(request) {
+    if (request.emailOpened) {
+        return 'status-sent';
+    }
+    if (request.editCount > 0) {
+        return 'status-edited';
+    }
+    if (canEdit(request)) {
+        return 'status-editable';
+    }
+    return 'status-pending';
+}
+
+function getStatusText(request) {
+    if (request.emailOpened) {
+        return '✓ تم الإرسال بنجاح - يتم مراجعته';
+    }
+    if (request.editCount > 0) {
+        return '🔄 طلب معدّل - قيد المراجعة';
+    }
+    if (canEdit(request)) {
+        return '🔧 قابل للتعديل';
+    }
+    return '⏳ قيد المراجعة';
+}
+
+// ===============================================
 // التحقق من إمكانية التعديل
 // ===============================================
 function canEdit(request) {
-    // لا يمكن التعديل إذا تم الاعتماد
-    return !request.approved;
+    // لا يمكن التعديل إذا تم التعديل مسبقاً (مرة واحدة فقط)
+    if (request.editCount >= 1) {
+        return false;
+    }
+    return true;
 }
 
 // ===============================================
@@ -498,7 +566,7 @@ function editRequest(requestId) {
     }
     
     if (!canEdit(request)) {
-        alert('🔒 لا يمكن تعديل هذا الطلب لأنه تم اعتماده من قبل الفريق.');
+        alert('🔒 لا يمكن تعديل هذا الطلب.\n\nالسبب: تم استنفاد عدد مرات التعديل المسموحة (مرة واحدة فقط).');
         return;
     }
     
@@ -523,7 +591,7 @@ function editRequest(requestId) {
     // التمرير للنموذج
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
-    alert('✏️ يمكنك الآن تعديل الطلب وإرساله مرة أخرى.\n\nملاحظة: لن تتمكن من التعديل بعد أن يفتح أحد أعضاء الفريق الإيميل.');
+    alert('✏️ يمكنك الآن تعديل الطلب وإرساله مرة أخرى.\n\n⚠️ تنبيه: يُسمح بالتعديل مرة واحدة فقط!\nسيتم إشعار الفريق بأن الطلب معدّل.');
 }
 
 // ===============================================
@@ -594,11 +662,28 @@ function resetForm() {
             preview.style.display = 'none';
         });
         
+        // مسح الصور الملتقطة
+        capturedImages = {};
+        window.capturedFiles = {};
+        document.querySelectorAll('.captured-images').forEach(container => {
+            container.innerHTML = '';
+        });
+        
+        // إخفاء تحذير الرقم المدني
+        const civilIdWarning = document.getElementById('civilIdWarning');
+        if (civilIdWarning) {
+            civilIdWarning.style.display = 'none';
+        }
+        
         // إخفاء وضع التعديل
         document.getElementById('editModeBanner').classList.remove('show');
         document.getElementById('editMode').value = 'false';
         document.getElementById('requestId').value = '';
         document.getElementById('submitText').textContent = 'إرسال الطلب';
+        
+        // إعادة تعيين متغيرات الحفظ التلقائي
+        lastFormData = '';
+        hasUnsavedChanges = false;
     }
 }
 
@@ -642,6 +727,240 @@ function simulateApproval(requestId) {
 }
 
 // ===============================================
+// نظام الكاميرا لتصوير المستندات
+// ===============================================
+let currentCameraField = null;
+let cameraStream = null;
+let capturedImages = {}; // تخزين الصور الملتقطة لكل حقل
+
+function openCamera(fieldName) {
+    currentCameraField = fieldName;
+    const modal = document.getElementById('cameraModal');
+    const video = document.getElementById('cameraVideo');
+    const preview = document.getElementById('cameraPreview');
+    
+    // إخفاء المعاينة وإظهار الفيديو
+    video.style.display = 'block';
+    preview.style.display = 'none';
+    
+    // إعادة تعيين الأزرار
+    document.getElementById('captureBtn').style.display = 'inline-block';
+    document.getElementById('retakeBtn').style.display = 'none';
+    document.getElementById('usePhotoBtn').style.display = 'none';
+    
+    // فتح الكاميرا
+    navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            facingMode: 'environment', // الكاميرا الخلفية للهواتف
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+        } 
+    })
+    .then(stream => {
+        cameraStream = stream;
+        video.srcObject = stream;
+        modal.classList.add('show');
+    })
+    .catch(err => {
+        console.error('خطأ في فتح الكاميرا:', err);
+        alert('⚠️ لا يمكن الوصول إلى الكاميرا.\n\nتأكد من:\n- السماح للموقع بالوصول للكاميرا\n- استخدام متصفح حديث\n- الاتصال عبر HTTPS');
+    });
+}
+
+function capturePhoto() {
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('cameraCanvas');
+    const preview = document.getElementById('cameraPreview');
+    
+    // ضبط حجم الكانفاس
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // رسم الصورة
+    ctx.drawImage(video, 0, 0);
+    
+    // تحسين الصورة (زيادة التباين والحدة للمستندات)
+    enhanceDocumentImage(ctx, canvas.width, canvas.height);
+    
+    // تحويل إلى صورة
+    const imageData = canvas.toDataURL('image/jpeg', 0.9);
+    preview.src = imageData;
+    
+    // إخفاء الفيديو وإظهار المعاينة
+    video.style.display = 'none';
+    preview.style.display = 'block';
+    
+    // تحديث الأزرار
+    document.getElementById('captureBtn').style.display = 'none';
+    document.getElementById('retakeBtn').style.display = 'inline-block';
+    document.getElementById('usePhotoBtn').style.display = 'inline-block';
+}
+
+function enhanceDocumentImage(ctx, width, height) {
+    // الحصول على بيانات الصورة
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    
+    // تحسين التباين والسطوع للمستندات
+    const contrast = 1.2; // زيادة التباين
+    const brightness = 10; // زيادة طفيفة في السطوع
+    
+    for (let i = 0; i < data.length; i += 4) {
+        // تطبيق التباين والسطوع
+        data[i] = Math.min(255, Math.max(0, ((data[i] - 128) * contrast) + 128 + brightness));     // R
+        data[i+1] = Math.min(255, Math.max(0, ((data[i+1] - 128) * contrast) + 128 + brightness)); // G
+        data[i+2] = Math.min(255, Math.max(0, ((data[i+2] - 128) * contrast) + 128 + brightness)); // B
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+}
+
+function retakePhoto() {
+    const video = document.getElementById('cameraVideo');
+    const preview = document.getElementById('cameraPreview');
+    
+    // إظهار الفيديو وإخفاء المعاينة
+    video.style.display = 'block';
+    preview.style.display = 'none';
+    
+    // تحديث الأزرار
+    document.getElementById('captureBtn').style.display = 'inline-block';
+    document.getElementById('retakeBtn').style.display = 'none';
+    document.getElementById('usePhotoBtn').style.display = 'none';
+}
+
+function usePhoto() {
+    const preview = document.getElementById('cameraPreview');
+    const imageData = preview.src;
+    
+    // تخزين الصورة
+    if (!capturedImages[currentCameraField]) {
+        capturedImages[currentCameraField] = [];
+    }
+    capturedImages[currentCameraField].push(imageData);
+    
+    // عرض الصورة المصغرة
+    displayCapturedImages(currentCameraField);
+    
+    // تحويل الصورة إلى ملف وإضافتها للحقل
+    addImageToFileInput(currentCameraField, imageData);
+    
+    // إغلاق الكاميرا
+    closeCamera();
+}
+
+function displayCapturedImages(fieldName) {
+    const container = document.getElementById(`${fieldName}-images`);
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (capturedImages[fieldName]) {
+        capturedImages[fieldName].forEach((imgData, index) => {
+            const img = document.createElement('img');
+            img.src = imgData;
+            img.className = 'captured-image-thumb';
+            img.title = `صورة ${index + 1} - انقر للحذف`;
+            img.onclick = () => removeCapturedImage(fieldName, index);
+            container.appendChild(img);
+        });
+    }
+}
+
+function removeCapturedImage(fieldName, index) {
+    if (confirm('هل تريد حذف هذه الصورة؟')) {
+        capturedImages[fieldName].splice(index, 1);
+        displayCapturedImages(fieldName);
+    }
+}
+
+function addImageToFileInput(fieldName, imageData) {
+    // تحويل base64 إلى Blob
+    const byteString = atob(imageData.split(',')[1]);
+    const mimeString = imageData.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    
+    const blob = new Blob([ab], { type: mimeString });
+    const file = new File([blob], `captured_${fieldName}_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    
+    // تخزين الملف للإرسال لاحقاً
+    if (!window.capturedFiles) {
+        window.capturedFiles = {};
+    }
+    if (!window.capturedFiles[fieldName]) {
+        window.capturedFiles[fieldName] = [];
+    }
+    window.capturedFiles[fieldName].push(file);
+    
+    // تحديث معاينة الملف
+    const fileInput = document.querySelector(`input[name="${fieldName}"]`);
+    if (fileInput) {
+        const previewDiv = fileInput.closest('.upload-item').querySelector('.file-preview');
+        if (previewDiv) {
+            const count = window.capturedFiles[fieldName].length;
+            previewDiv.textContent = `✓ تم التقاط ${count} صورة`;
+            previewDiv.style.display = 'block';
+        }
+    }
+}
+
+function closeCamera() {
+    const modal = document.getElementById('cameraModal');
+    modal.classList.remove('show');
+    
+    // إيقاف الكاميرا
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    
+    currentCameraField = null;
+}
+
+// ===============================================
+// التحقق من وجود طلب سابق لنفس الرقم المدني
+// ===============================================
+function checkPreviousCivilIdRequest() {
+    const civilIdInput = document.getElementById('civilId');
+    if (!civilIdInput) return;
+    
+    civilIdInput.addEventListener('blur', function() {
+        const civilId = this.value.trim();
+        if (!civilId) return;
+        
+        const requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
+        const existingRequest = requests.find(r => r.civilId === civilId);
+        
+        if (existingRequest) {
+            const warningDiv = document.getElementById('civilIdWarning') || createWarningDiv();
+            warningDiv.innerHTML = `⚠️ تنبيه: يوجد طلب سابق مرسل بهذا الرقم المدني (طلب رقم: ${existingRequest.requestId})`;
+            warningDiv.style.display = 'block';
+        }
+    });
+}
+
+function createWarningDiv() {
+    const civilIdInput = document.getElementById('civilId');
+    const warningDiv = document.createElement('div');
+    warningDiv.id = 'civilIdWarning';
+    warningDiv.style.cssText = 'background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; margin-top: 8px; font-size: 0.9em; display: none;';
+    civilIdInput.parentNode.appendChild(warningDiv);
+    return warningDiv;
+}
+
+// تفعيل التحقق عند تحميل الصفحة
+window.addEventListener('load', function() {
+    setTimeout(checkPreviousCivilIdRequest, 100);
+});
+
+// ===============================================
 // تصدير الدوال للاستخدام العام
 // ===============================================
 window.toggleMyRequests = toggleMyRequests;
@@ -651,3 +970,8 @@ window.manualSave = manualSave;
 window.resetForm = resetForm;
 window.showFilePreview = showFilePreview;
 window.simulateApproval = simulateApproval;
+window.openCamera = openCamera;
+window.capturePhoto = capturePhoto;
+window.retakePhoto = retakePhoto;
+window.usePhoto = usePhoto;
+window.closeCamera = closeCamera;
