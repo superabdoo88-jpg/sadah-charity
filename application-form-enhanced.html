@@ -218,6 +218,11 @@
             color: #856404;
         }
 
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
         .edited-badge {
             position: absolute;
             top: 15px;
@@ -1130,11 +1135,6 @@
 
         <div class="header">
             <div class="header-content">
-                <div class="logo-section">
-                    <div class="logo-placeholder">شعار 1</div>
-                    <div class="logo-placeholder">شعار 2</div>
-                    <div class="logo-placeholder">شعار 3</div>
-                </div>
                 <h1>استمارة تقديم طلب في فريق سدح الخيري</h1>
                 <p class="subtitle">يرجى تعبئة جميع الحقول بدقة</p>
                 
@@ -1219,7 +1219,28 @@
                 <div class="form-group">
                     <label>الحساب البنكي</label>
                     <div class="bank-account-group">
-                        <input type="text" name="bankName" id="bankName" placeholder="اسم البنك والفرع">
+                        <select name="bankName" id="bankName" onchange="toggleOtherBank()">
+                            <option value="">-- اختر البنك --</option>
+                            <option value="بنك ظفار">بنك ظفار</option>
+                            <option value="بنك مسقط">بنك مسقط</option>
+                            <option value="البنك الوطني العماني">البنك الوطني العماني</option>
+                            <option value="بنك عمان العربي">بنك عمان العربي</option>
+                            <option value="بنك صحار">بنك صحار</option>
+                            <option value="بنك HSBC عمان">بنك HSBC عمان</option>
+                            <option value="بنك الإسكان العماني">بنك الإسكان العماني</option>
+                            <option value="بنك التنمية العماني">بنك التنمية العماني</option>
+                            <option value="بنك نزوى">بنك نزوى</option>
+                            <option value="بنك العز الإسلامي">بنك العز الإسلامي</option>
+                            <option value="بنك أبوظبي الوطني">بنك أبوظبي الوطني</option>
+                            <option value="بنك ستاندرد تشارترد">بنك ستاندرد تشارترد</option>
+                            <option value="ستيت بنك أوف إنديا">ستيت بنك أوف إنديا</option>
+                            <option value="بنك بيروت">بنك بيروت</option>
+                            <option value="بنك قطر الوطني">بنك قطر الوطني</option>
+                            <option value="بنك الأهلي">بنك الأهلي</option>
+                            <option value="other">أخرى</option>
+                        </select>
+                        <input type="text" name="otherBankName" id="otherBankName" placeholder="اكتب اسم البنك" style="display: none;">
+                        <input type="text" name="bankBranch" id="bankBranch" placeholder="اسم الفرع">
                         <input type="text" name="accountNumber" id="accountNumber" placeholder="رقم الحساب">
                     </div>
                 </div>
