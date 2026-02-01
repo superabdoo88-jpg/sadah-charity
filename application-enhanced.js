@@ -353,19 +353,43 @@ function setupFormSubmission() {
             // تحديث عداد الطلبات
             updateRequestCount();
             
-            // إعادة تعيين النموذج
+            // إعادة تعيين النموذج فوراً للاستعداد لطلب جديد
+            this.reset();
+            document.querySelectorAll('.file-preview').forEach(preview => {
+                preview.style.display = 'none';
+            });
+            
+            // مسح الصور الملتقطة
+            if (typeof capturedImages !== 'undefined') {
+                capturedImages = {};
+            }
+            if (typeof sliderIndexes !== 'undefined') {
+                sliderIndexes = {};
+            }
+            window.capturedFiles = {};
+            document.querySelectorAll('.captured-images').forEach(container => {
+                container.innerHTML = '';
+            });
+            
+            // إخفاء تحذير الرقم المدني
+            const civilIdWarning = document.getElementById('civilIdWarning');
+            if (civilIdWarning) {
+                civilIdWarning.style.display = 'none';
+            }
+            
+            // إخفاء بانر التعديل
+            document.getElementById('editModeBanner').classList.remove('show');
+            document.getElementById('editMode').value = 'false';
+            document.getElementById('requestId').value = '';
+            submitText.textContent = 'إرسال الطلب';
+            
+            // إعادة تعيين متغيرات الحفظ التلقائي
+            lastFormData = '';
+            hasUnsavedChanges = false;
+            
+            // إخفاء رسالة النجاح بعد فترة
             setTimeout(() => {
-                this.reset();
-                document.querySelectorAll('.file-preview').forEach(preview => {
-                    preview.style.display = 'none';
-                });
                 successMsg.style.display = 'none';
-                
-                // إخفاء بانر التعديل إذا كان ظاهراً
-                document.getElementById('editModeBanner').classList.remove('show');
-                document.getElementById('editMode').value = 'false';
-                document.getElementById('requestId').value = '';
-                submitText.textContent = 'إرسال الطلب';
             }, 5000);
             
         } catch (error) {
@@ -421,16 +445,31 @@ function saveRequestLocally(data) {
     
     const requestData = {
         requestId: requestId,
+        // البيانات الأساسية
         name: data.name,
         civilId: data.civilId,
         phone: data.phone,
+        email: data.email || '',
+        address: data.address || '',
+        // تفاصيل الطلب
+        requestType: data.requestType || '',
+        requestDetails: data.requestDetails || '',
+        familyMembers: data.familyMembers || '',
+        monthlyIncome: data.monthlyIncome || '',
+        employmentStatus: data.employmentStatus || '',
+        // البيانات البنكية
+        bankName: data.bankName || '',
+        iban: data.iban || '',
+        // معلومات الحالة
         submissionDate: data.submissionDate,
-        status: data.isEdit ? 'edited' : 'pending', // pending, edited, sent
+        status: data.isEdit ? 'edited' : 'pending',
         emailOpened: existingRequest ? existingRequest.emailOpened : false,
         emailOpenedDate: existingRequest ? existingRequest.emailOpenedDate : null,
         editCount: data.isEdit ? currentEditCount + 1 : 0,
         deviceId: deviceId,
-        lastModified: new Date().toISOString()
+        lastModified: new Date().toISOString(),
+        // معلومات الملفات المرفقة (أسماء فقط للعرض)
+        attachedFiles: getAttachedFilesInfo()
     };
     
     if (existingIndex >= 0) {
@@ -440,6 +479,46 @@ function saveRequestLocally(data) {
     }
     
     localStorage.setItem(CONFIG.requestsKey, JSON.stringify(requests));
+}
+
+// الحصول على معلومات الملفات المرفقة
+function getAttachedFilesInfo() {
+    const files = {};
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    
+    fileInputs.forEach(input => {
+        if (input.files && input.files.length > 0) {
+            files[input.name] = Array.from(input.files).map(f => f.name);
+        }
+    });
+    
+    // إضافة الصور الملتقطة
+    if (window.capturedFiles) {
+        for (const [fieldName, fileList] of Object.entries(window.capturedFiles)) {
+            if (fileList.length > 0) {
+                files[fieldName] = (files[fieldName] || []).concat(
+                    fileList.map(f => f.name)
+                );
+            }
+        }
+    }
+    
+    return files;
+}
+
+// عرض معلومات الملفات المرفقة سابقاً
+function displayPreviousFiles(attachedFiles) {
+    if (!attachedFiles) return;
+    
+    for (const [fieldName, fileNames] of Object.entries(attachedFiles)) {
+        const container = document.getElementById(`${fieldName}-images`);
+        const previewDiv = document.querySelector(`input[name="${fieldName}"]`)?.closest('.upload-item')?.querySelector('.file-preview');
+        
+        if (previewDiv && fileNames.length > 0) {
+            previewDiv.textContent = `ملفات سابقة: ${fileNames.join(', ')}`;
+            previewDiv.style.display = 'block';
+        }
+    }
 }
 
 // ===============================================
@@ -523,23 +602,17 @@ function getStatusClass(request) {
     if (request.editCount > 0) {
         return 'status-edited';
     }
-    if (canEdit(request)) {
-        return 'status-editable';
-    }
     return 'status-pending';
 }
 
 function getStatusText(request) {
     if (request.emailOpened) {
-        return '✓ تم الإرسال بنجاح - يتم مراجعته';
+        return 'تم الإرسال - يتم مراجعته';
     }
     if (request.editCount > 0) {
-        return '🔄 طلب معدّل - قيد المراجعة';
+        return 'طلب معدّل - قيد المراجعة';
     }
-    if (canEdit(request)) {
-        return '🔧 قابل للتعديل';
-    }
-    return '⏳ قيد المراجعة';
+    return 'قيد المراجعة';
 }
 
 // ===============================================
@@ -561,12 +634,12 @@ function editRequest(requestId) {
     const request = requests.find(r => r.requestId === requestId);
     
     if (!request) {
-        alert('❌ لم يتم العثور على الطلب!');
+        alert('لم يتم العثور على الطلب');
         return;
     }
     
     if (!canEdit(request)) {
-        alert('🔒 لا يمكن تعديل هذا الطلب.\n\nالسبب: تم استنفاد عدد مرات التعديل المسموحة (مرة واحدة فقط).');
+        alert('لا يمكن تعديل هذا الطلب.\n\nتم استنفاد عدد مرات التعديل المسموحة (مرة واحدة فقط).');
         return;
     }
     
@@ -582,16 +655,52 @@ function editRequest(requestId) {
     // تغيير نص زر الإرسال
     document.getElementById('submitText').textContent = 'تحديث الطلب';
     
-    // ملء النموذج بالبيانات
-    // (سيتم ملؤه من localStorage أو من API)
+    // ملء النموذج بالبيانات المحفوظة
+    fillFormWithRequestData(request);
     
     // إغلاق قسم الطلبات
     document.getElementById('myRequestsSection').classList.remove('show');
     
     // التمرير للنموذج
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===============================================
+// ملء النموذج ببيانات الطلب السابق
+// ===============================================
+function fillFormWithRequestData(request) {
+    // ملء الحقول النصية الأساسية
+    const fieldMappings = {
+        'name': 'name',
+        'civilId': 'civilId',
+        'phone': 'phone',
+        'email': 'email',
+        'address': 'address',
+        'requestType': 'requestType',
+        'requestDetails': 'requestDetails',
+        'familyMembers': 'familyMembers',
+        'monthlyIncome': 'monthlyIncome',
+        'employmentStatus': 'employmentStatus',
+        'bankName': 'bankName',
+        'iban': 'iban'
+    };
     
-    alert('✏️ يمكنك الآن تعديل الطلب وإرساله مرة أخرى.\n\n⚠️ تنبيه: يُسمح بالتعديل مرة واحدة فقط!\nسيتم إشعار الفريق بأن الطلب معدّل.');
+    for (const [formField, dataField] of Object.entries(fieldMappings)) {
+        const element = document.getElementById(formField) || document.querySelector(`[name="${formField}"]`);
+        if (element && request[dataField]) {
+            element.value = request[dataField];
+        }
+    }
+    
+    // ملء بيانات أفراد العائلة إذا وجدت
+    if (request.familyData && Array.isArray(request.familyData)) {
+        // سيتم التعامل معها لاحقاً إذا كانت موجودة
+    }
+    
+    // عرض معلومات الملفات المرفقة سابقاً
+    if (request.attachedFiles) {
+        displayPreviousFiles(request.attachedFiles);
+    }
 }
 
 // ===============================================
