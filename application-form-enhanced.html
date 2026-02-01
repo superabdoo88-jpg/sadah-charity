@@ -208,6 +208,28 @@
             color: white;
         }
 
+        .status-sent {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status-edited {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .edited-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #ffc107;
+            color: #856404;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+
         .request-info {
             margin-bottom: 10px;
         }
@@ -303,30 +325,33 @@
             50% { opacity: 0.5; }
         }
 
-        /* مؤشر الحفظ التلقائي */
+        /* مؤشر الحفظ التلقائي - تصميم بسيط وأعلى الصفحة */
         .autosave-indicator {
             position: fixed;
-            top: 20px;
-            left: 20px;
-            background: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            box-shadow: var(--shadow);
-            font-size: 0.9em;
-            font-weight: 600;
-            color: var(--success-color);
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(40, 167, 69, 0.95);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 500;
             display: none;
-            z-index: 1000;
-            animation: fadeInOut 2s ease-in-out;
-        }
-
-        @keyframes fadeInOut {
-            0%, 100% { opacity: 0; }
-            50% { opacity: 1; }
+            z-index: 1001;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
 
         .autosave-indicator.show {
             display: block;
+            animation: slideDownFade 2s ease-in-out forwards;
+        }
+
+        @keyframes slideDownFade {
+            0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
         }
 
         .form-section {
@@ -514,6 +539,148 @@
             display: none;
         }
 
+        /* أزرار الكاميرا والملفات */
+        .upload-options {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .btn-camera {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 600;
+            font-size: 0.9em;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-camera:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-camera:active {
+            transform: translateY(0);
+        }
+
+        /* نافذة الكاميرا */
+        .camera-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .camera-modal.show {
+            display: flex;
+        }
+
+        .camera-container {
+            position: relative;
+            max-width: 90%;
+            max-height: 70vh;
+        }
+
+        .camera-video {
+            max-width: 100%;
+            max-height: 60vh;
+            border-radius: 12px;
+            background: #000;
+        }
+
+        .camera-canvas {
+            display: none;
+        }
+
+        .camera-preview {
+            max-width: 100%;
+            max-height: 60vh;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .camera-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        .camera-btn-capture {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .camera-btn-retake {
+            background: var(--warning-color);
+            color: #856404;
+            display: none;
+        }
+
+        .camera-btn-use {
+            background: var(--primary-color);
+            color: white;
+            display: none;
+        }
+
+        .camera-btn-close {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .camera-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* معاينة الصورة الملتقطة */
+        .captured-images {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .captured-image-thumb {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            cursor: pointer;
+        }
+
+        .captured-image-thumb:hover {
+            border-color: var(--primary-color);
+        }
+
         .button-group {
             display: flex;
             gap: 15px;
@@ -692,9 +859,32 @@
         <span id="networkText">متصل</span>
     </div>
 
-    <!-- مؤشر الحفظ التلقائي -->
+    <!-- مؤشر الحفظ التلقائي - بسيط ورسمي -->
     <div class="autosave-indicator" id="autosaveIndicator">
-        ✓ تم الحفظ تلقائياً
+        تم الحفظ
+    </div>
+
+    <!-- نافذة الكاميرا -->
+    <div class="camera-modal" id="cameraModal">
+        <div class="camera-container">
+            <video class="camera-video" id="cameraVideo" autoplay playsinline></video>
+            <canvas class="camera-canvas" id="cameraCanvas"></canvas>
+            <img class="camera-preview" id="cameraPreview" alt="معاينة">
+        </div>
+        <div class="camera-controls">
+            <button type="button" class="camera-btn camera-btn-capture" id="captureBtn" onclick="capturePhoto()">
+                📷 التقاط
+            </button>
+            <button type="button" class="camera-btn camera-btn-retake" id="retakeBtn" onclick="retakePhoto()">
+                🔄 إعادة التصوير
+            </button>
+            <button type="button" class="camera-btn camera-btn-use" id="usePhotoBtn" onclick="usePhoto()">
+                ✓ استخدام الصورة
+            </button>
+            <button type="button" class="camera-btn camera-btn-close" onclick="closeCamera()">
+                ✕ إغلاق
+            </button>
+        </div>
     </div>
 
     <div class="container">
@@ -798,26 +988,50 @@
 
                     <div class="upload-item">
                         <div class="upload-label">رسالة تقديم طلب موجهة إلى رئيس فريق سدح الخيري</div>
-                        <input type="file" name="requestLetter" accept=".pdf,.jpg,.jpeg,.png" onchange="showFilePreview(this)">
+                        <div class="upload-options">
+                            <input type="file" name="requestLetter" accept=".pdf,.jpg,.jpeg,.png" onchange="showFilePreview(this)">
+                            <button type="button" class="btn-camera" onclick="openCamera('requestLetter')">
+                                📷 تصوير
+                            </button>
+                        </div>
                         <div class="file-preview"></div>
+                        <div class="captured-images" id="requestLetter-images"></div>
                     </div>
 
                     <div class="upload-item">
                         <div class="upload-label">نسخة من البطاقة الشخصية لصاحب الطلب (نسخة ملونة)</div>
-                        <input type="file" name="personalId" accept=".pdf,.jpg,.jpeg,.png" onchange="showFilePreview(this)">
+                        <div class="upload-options">
+                            <input type="file" name="personalId" accept=".pdf,.jpg,.jpeg,.png" onchange="showFilePreview(this)">
+                            <button type="button" class="btn-camera" onclick="openCamera('personalId')">
+                                📷 تصوير
+                            </button>
+                        </div>
                         <div class="file-preview"></div>
+                        <div class="captured-images" id="personalId-images"></div>
                     </div>
 
                     <div class="upload-item">
                         <div class="upload-label">نسخة من بطاقة البنك ورقم الحساب البنكي واسم البنك والفرع لصاحب الطلب</div>
-                        <input type="file" name="bankCard" accept=".pdf,.jpg,.jpeg,.png" onchange="showFilePreview(this)">
+                        <div class="upload-options">
+                            <input type="file" name="bankCard" accept=".pdf,.jpg,.jpeg,.png" onchange="showFilePreview(this)">
+                            <button type="button" class="btn-camera" onclick="openCamera('bankCard')">
+                                📷 تصوير
+                            </button>
+                        </div>
                         <div class="file-preview"></div>
+                        <div class="captured-images" id="bankCard-images"></div>
                     </div>
 
                     <div class="upload-item">
                         <div class="upload-label">نسخ من البطاقة الشخصية أو جواز لكل من يسكن بالمنزل</div>
-                        <input type="file" name="familyIds" accept=".pdf,.jpg,.jpeg,.png" multiple onchange="showFilePreview(this)">
+                        <div class="upload-options">
+                            <input type="file" name="familyIds" accept=".pdf,.jpg,.jpeg,.png" multiple onchange="showFilePreview(this)">
+                            <button type="button" class="btn-camera" onclick="openCamera('familyIds')">
+                                📷 تصوير
+                            </button>
+                        </div>
                         <div class="file-preview"></div>
+                        <div class="captured-images" id="familyIds-images"></div>
                     </div>
 
                     <div class="upload-item">
