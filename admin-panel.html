@@ -547,10 +547,10 @@
                         style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Tajawal', sans-serif; resize: vertical;"></textarea>
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button class="btn btn-reject" style="flex: 1; padding: 12px;" onclick="confirmReject()">
+                    <button class="btn btn-reject" style="flex: 1; padding: 12px;" id="confirmRejectBtn" type="button">
                         تأكيد الرفض
                     </button>
-                    <button class="btn" style="flex: 1; padding: 12px; background: #6c757d; color: white;" onclick="closeRejectModal()">
+                    <button class="btn" style="flex: 1; padding: 12px; background: #6c757d; color: white;" id="cancelRejectBtn" type="button">
                         إلغاء
                     </button>
                 </div>
@@ -1009,10 +1009,18 @@
             
             if (!requestId) {
                 console.error('requestId is empty!');
+                alert('خطأ: رقم الطلب غير موجود');
                 return;
             }
             
-            currentRejectRequestId = requestId;
+            // حفظ رقم الطلب فوراً
+            currentRejectRequestId = String(requestId);
+            console.log('Set currentRejectRequestId to:', currentRejectRequestId);
+            
+            // إغلاق نافذة التفاصيل أولاً
+            document.getElementById('detailsModal').classList.remove('show');
+            
+            // تحديث محتوى نافذة الرفض
             document.getElementById('rejectRequestId').textContent = requestId;
             document.getElementById('rejectReason').value = '';
             
@@ -1030,24 +1038,25 @@
                 }
             }
             
-            // إغلاق نافذة التفاصيل إذا كانت مفتوحة
-            closeModal();
-            
-            // فتح نافذة الرفض
-            document.getElementById('rejectModal').classList.add('show');
-            console.log('Reject modal should be visible now');
+            // فتح نافذة الرفض بعد تأخير بسيط
+            setTimeout(function() {
+                document.getElementById('rejectModal').classList.add('show');
+                console.log('Reject modal opened');
+            }, 100);
         }
 
         // إغلاق نافذة الرفض
         function closeRejectModal() {
+            console.log('closeRejectModal called');
             document.getElementById('rejectModal').classList.remove('show');
-            // لا نمسح currentRejectRequestId هنا لأنه قد يُستخدم في confirmReject
-            // سيتم مسحه بعد انتهاء العملية
+            // مسح سبب الرفض
+            document.getElementById('rejectReason').value = '';
         }
 
         // تأكيد الرفض
         async function confirmReject() {
-            console.log('confirmReject called, currentRejectRequestId:', currentRejectRequestId);
+            console.log('=== confirmReject START ===');
+            console.log('currentRejectRequestId:', currentRejectRequestId);
             
             if (!currentRejectRequestId) {
                 console.error('No request ID to reject!');
@@ -1055,14 +1064,23 @@
                 return;
             }
             
+            // حفظ القيم قبل أي شيء
+            const requestId = currentRejectRequestId;
             const rejectReason = document.getElementById('rejectReason').value.trim();
-            const requestId = currentRejectRequestId; // حفظ القيمة قبل إغلاق النافذة
             
-            closeRejectModal();
-            currentRejectRequestId = null; // مسح المتغير بعد الحفظ
+            console.log('Will reject request:', requestId);
+            console.log('Reject reason:', rejectReason);
             
-            console.log('Processing rejection for:', requestId, 'Reason:', rejectReason);
+            // إغلاق النافذة
+            document.getElementById('rejectModal').classList.remove('show');
+            
+            // مسح المتغير
+            currentRejectRequestId = null;
+            
+            // تنفيذ الرفض
+            console.log('Calling processStatusChange...');
             await processStatusChange(requestId, 'rejected', rejectReason);
+            console.log('=== confirmReject END ===');
         }
 
         function closeModal() {
@@ -1080,6 +1098,17 @@
             if (e.target === this) {
                 closeRejectModal();
             }
+        });
+        
+        // ربط أزرار نافذة الرفض
+        document.getElementById('confirmRejectBtn').addEventListener('click', function() {
+            console.log('Confirm reject button clicked');
+            confirmReject();
+        });
+        
+        document.getElementById('cancelRejectBtn').addEventListener('click', function() {
+            console.log('Cancel reject button clicked');
+            closeRejectModal();
         });
 
         // إضافة أنماط الأنيميشن
