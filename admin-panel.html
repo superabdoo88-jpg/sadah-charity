@@ -1030,7 +1030,11 @@
             
             const emailWarning = document.getElementById('emailWarning');
             if (emailWarning) {
-                if (!request || !request.email || !request.email.includes('@')) {
+                // تحويل email لنص للتأكد من عمل includes
+                const email = request && request.email ? String(request.email).trim() : '';
+                const hasValidEmail = email && email.includes('@');
+                
+                if (!hasValidEmail) {
                     emailWarning.style.display = 'block';
                     emailWarning.innerHTML = '⚠️ <strong>تنبيه:</strong> لا يوجد بريد إلكتروني لهذا المتقدم، لن يصله إشعار بسبب الرفض.';
                 } else {
