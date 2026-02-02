@@ -399,22 +399,34 @@
 
         /* أنيميشن إخفاء الصف */
         @keyframes slideOut {
-            from {
+            0% {
                 opacity: 1;
                 transform: translateX(0);
-                max-height: 100px;
             }
-            to {
+            70% {
+                opacity: 0;
+                transform: translateX(-50%);
+            }
+            100% {
                 opacity: 0;
                 transform: translateX(-100%);
-                max-height: 0;
+                height: 0;
                 padding: 0;
                 margin: 0;
+                display: none;
             }
         }
 
         .row-removing {
-            animation: slideOut 0.5s ease-out forwards;
+            animation: slideOut 0.4s ease-out forwards;
+            pointer-events: none;
+        }
+
+        .row-removing td {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            border: none !important;
+            height: 0 !important;
             overflow: hidden;
         }
 
@@ -473,8 +485,8 @@
 
         <div class="filters">
             <select id="statusFilter" onchange="filterRequests()">
+                <option value="pending" selected>قيد المراجعة</option>
                 <option value="all">جميع الحالات</option>
-                <option value="pending">قيد المراجعة</option>
                 <option value="approved">معتمدة</option>
                 <option value="rejected">مرفوضة</option>
             </select>
@@ -589,7 +601,10 @@
             
             isLoading = false;
             updateStats();
-            displayRequests(allRequests);
+            // تطبيق الفلتر الافتراضي (قيد المراجعة)
+            filterRequests();
+            // تفعيل بطاقة "قيد المراجعة"
+            updateActiveCard('pending');
         }
 
         function updateStats() {
@@ -818,15 +833,29 @@
         function animateRowRemoval(requestId, newStatus) {
             const row = document.querySelector(`tr[data-request-id="${requestId}"]`);
             if (row) {
+                // إضافة كلاس الأنيميشن
                 row.classList.add('row-removing');
+                
+                // إزالة الصف من DOM فوراً بعد الأنيميشن
                 setTimeout(() => {
-                    // تحديث الإحصائيات فوراً
+                    row.remove(); // إزالة الصف من الجدول
+                    
+                    // تحديث الإحصائيات
                     updateStats();
-                    // إعادة عرض الطلبات حسب الفلتر الحالي
-                    filterRequests();
+                    
                     // إظهار إشعار نجاح
                     showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب' : '✗ تم رفض الطلب', newStatus);
+                    
+                    // التحقق إذا لم يتبق طلبات في الجدول
+                    const tbody = document.getElementById('requestsBody');
+                    if (tbody.children.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">لا توجد طلبات قيد المراجعة</td></tr>';
+                    }
                 }, 400);
+            } else {
+                // إذا لم يوجد الصف، فقط حدث الإحصائيات
+                updateStats();
+                showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب' : '✗ تم رفض الطلب', newStatus);
             }
         }
 
