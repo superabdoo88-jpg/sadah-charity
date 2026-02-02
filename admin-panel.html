@@ -103,6 +103,24 @@
         .stat-card.approved .number { color: var(--success-color); }
         .stat-card.rejected .number { color: var(--danger-color); }
 
+        .stat-card.clickable {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card.clickable:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .stat-card.clickable:active {
+            transform: translateY(-1px);
+        }
+
+        .stat-card.active {
+            border: 3px solid var(--primary-color);
+        }
+
         .filters {
             background: white;
             padding: 15px;
@@ -435,19 +453,19 @@
 
     <div class="container">
         <div class="stats">
-            <div class="stat-card">
+            <div class="stat-card clickable" onclick="filterByStatus('all')" title="عرض جميع الطلبات">
                 <div class="number" id="totalCount">0</div>
                 <div class="label">إجمالي الطلبات</div>
             </div>
-            <div class="stat-card pending">
+            <div class="stat-card pending clickable" onclick="filterByStatus('pending')" title="عرض الطلبات قيد المراجعة">
                 <div class="number" id="pendingCount">0</div>
                 <div class="label">قيد المراجعة</div>
             </div>
-            <div class="stat-card approved">
+            <div class="stat-card approved clickable" onclick="filterByStatus('approved')" title="عرض الطلبات المعتمدة">
                 <div class="number" id="approvedCount">0</div>
                 <div class="label">معتمدة</div>
             </div>
-            <div class="stat-card rejected">
+            <div class="stat-card rejected clickable" onclick="filterByStatus('rejected')" title="عرض الطلبات المرفوضة">
                 <div class="number" id="rejectedCount">0</div>
                 <div class="label">مرفوضة</div>
             </div>
@@ -603,12 +621,12 @@
                 }[status];
 
                 const actionButtons = status === 'pending' ? `
-                    <button class="btn btn-approve" onclick="updateStatus('${req.requestId}', 'approved')">اعتماد</button>
-                    <button class="btn btn-reject" onclick="updateStatus('${req.requestId}', 'rejected')">رفض</button>
+                    <button class="btn btn-approve" onclick="event.stopPropagation(); approveFromTable('${req.requestId}')">اعتماد</button>
+                    <button class="btn btn-reject" onclick="event.stopPropagation(); openRejectModal('${req.requestId}')">رفض</button>
                 ` : '';
 
                 return `
-                    <tr>
+                    <tr data-request-id="${req.requestId}" class="request-row">
                         <td>${req.requestId || '-'}</td>
                         <td>${req.name || '-'}</td>
                         <td>${req.civilId || '-'}</td>
@@ -616,7 +634,7 @@
                         <td>${req.submissionDate || '-'}</td>
                         <td><span class="status-badge status-${status}">${statusText}</span></td>
                         <td class="action-buttons">
-                            <button class="btn btn-view" onclick="viewDetails('${req.requestId}')">عرض</button>
+                            <button class="btn btn-view" onclick="event.stopPropagation(); viewDetails('${req.requestId}')">عرض</button>
                             ${actionButtons}
                         </td>
                     </tr>
@@ -648,43 +666,32 @@
             }
 
             displayRequests(filtered);
+            updateActiveCard(statusFilter);
         }
 
-        async function updateStatus(requestId, newStatus) {
-            const confirmMsg = newStatus === 'approved' 
-                ? 'هل تريد اعتماد هذا الطلب؟' 
-                : 'هل تريد رفض هذا الطلب؟';
-            
-            if (!confirm(confirmMsg)) return;
+        // فلترة سريعة من البطاقات
+        function filterByStatus(status) {
+            document.getElementById('statusFilter').value = status;
+            document.getElementById('searchInput').value = '';
+            filterRequests();
+        }
 
-            try {
-                // إرسال التحديث إلى Google Sheets
-                const response = await fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'updateStatus',
-                        requestId: requestId,
-                        adminStatus: newStatus,
-                        adminActionDate: new Date().toLocaleDateString('ar-SA')
-                    })
-                });
-                
-                // تحديث محلياً
-                const index = allRequests.findIndex(r => r.requestId === requestId);
-                if (index !== -1) {
-                    allRequests[index].adminStatus = newStatus;
-                    allRequests[index].adminActionDate = new Date().toLocaleDateString('ar-SA');
-                }
-                
-                updateStats();
-                filterRequests();
-                
-                alert(newStatus === 'approved' ? 'تم اعتماد الطلب بنجاح' : 'تم رفض الطلب');
-            } catch (error) {
-                console.error('خطأ في تحديث الحالة:', error);
-                alert('حدث خطأ أثناء تحديث الحالة');
+        // تحديث البطاقة النشطة
+        function updateActiveCard(status) {
+            document.querySelectorAll('.stat-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            
+            const cardMap = {
+                'all': 0,
+                'pending': 1,
+                'approved': 2,
+                'rejected': 3
+            };
+            
+            const cards = document.querySelectorAll('.stat-card');
+            if (cards[cardMap[status]]) {
+                cards[cardMap[status]].classList.add('active');
             }
         }
 
@@ -801,9 +808,74 @@
             if (newStatus === 'approved') {
                 if (!confirm('هل تريد اعتماد هذا الطلب؟')) return;
             }
+            
+            closeModal();
+            closeRejectModal();
+            await processStatusChange(requestId, newStatus, rejectReason);
+        }
 
+        // أنيميشن إخفاء الصف مع انتقال فوري للأرشيف
+        function animateRowRemoval(requestId, newStatus) {
+            const row = document.querySelector(`tr[data-request-id="${requestId}"]`);
+            if (row) {
+                row.classList.add('row-removing');
+                setTimeout(() => {
+                    // تحديث الإحصائيات فوراً
+                    updateStats();
+                    // إعادة عرض الطلبات حسب الفلتر الحالي
+                    filterRequests();
+                    // إظهار إشعار نجاح
+                    showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب' : '✗ تم رفض الطلب', newStatus);
+                }, 400);
+            }
+        }
+
+        // إشعار منبثق
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.innerHTML = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 15px 30px;
+                border-radius: 8px;
+                font-weight: 600;
+                z-index: 10000;
+                animation: slideDown 0.3s ease-out;
+                ${type === 'approved' ? 'background: #d4edda; color: #155724; border: 1px solid #c3e6cb;' : 'background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;'}
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideUp 0.3s ease-out forwards';
+                setTimeout(() => notification.remove(), 300);
+            }, 2500);
+        }
+
+        // اعتماد من الجدول مباشرة
+        async function approveFromTable(requestId) {
+            if (!confirm('هل تريد اعتماد هذا الطلب؟')) return;
+            await processStatusChange(requestId, 'approved', '');
+        }
+
+        // معالجة تغيير الحالة (مشتركة)
+        async function processStatusChange(requestId, newStatus, rejectReason) {
             try {
-                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                // تحديث محلياً أولاً للاستجابة الفورية
+                const index = allRequests.findIndex(r => r.requestId === requestId);
+                if (index !== -1) {
+                    allRequests[index].adminStatus = newStatus;
+                    allRequests[index].adminActionDate = new Date().toLocaleDateString('ar-SA');
+                }
+                
+                // أنيميشن الإخفاء
+                animateRowRemoval(requestId, newStatus);
+                
+                // إرسال للسيرفر في الخلفية
+                fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
@@ -816,41 +888,11 @@
                     })
                 });
                 
-                const index = allRequests.findIndex(r => r.requestId === requestId);
-                if (index !== -1) {
-                    allRequests[index].adminStatus = newStatus;
-                    allRequests[index].adminActionDate = new Date().toLocaleDateString('ar-SA');
-                }
-                
-                closeModal();
-                closeRejectModal();
-                updateStats();
-                
-                // أنيميشن إخفاء الصف للطلبات المرفوضة
-                if (newStatus === 'rejected') {
-                    animateRowRemoval(requestId);
-                } else {
-                    filterRequests();
-                }
-                
-                alert(newStatus === 'approved' ? '✓ تم اعتماد الطلب بنجاح' : 'تم رفض الطلب');
+                return true;
             } catch (error) {
                 console.error('خطأ في تحديث الحالة:', error);
-                alert('حدث خطأ أثناء تحديث الحالة');
+                return false;
             }
-        }
-
-        // أنيميشن إخفاء الصف
-        function animateRowRemoval(requestId) {
-            const rows = document.querySelectorAll('#requestsBody tr');
-            rows.forEach(row => {
-                if (row.innerHTML.includes(requestId)) {
-                    row.classList.add('row-removing');
-                    setTimeout(() => {
-                        filterRequests();
-                    }, 500);
-                }
-            });
         }
 
         // فتح نافذة الرفض
@@ -858,6 +900,8 @@
             currentRejectRequestId = requestId;
             document.getElementById('rejectRequestId').textContent = requestId;
             document.getElementById('rejectReason').value = '';
+            // إغلاق نافذة التفاصيل إذا كانت مفتوحة
+            closeModal();
             document.getElementById('rejectModal').classList.add('show');
         }
 
@@ -872,7 +916,8 @@
             if (!currentRejectRequestId) return;
             
             const rejectReason = document.getElementById('rejectReason').value.trim();
-            await updateStatusAndClose(currentRejectRequestId, 'rejected', rejectReason);
+            closeRejectModal();
+            await processStatusChange(currentRejectRequestId, 'rejected', rejectReason);
         }
 
         function closeModal() {
@@ -891,6 +936,26 @@
                 closeRejectModal();
             }
         });
+
+        // إضافة أنماط الأنيميشن
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideDown {
+                from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+                to { opacity: 1; transform: translateX(-50%) translateY(0); }
+            }
+            @keyframes slideUp {
+                from { opacity: 1; transform: translateX(-50%) translateY(0); }
+                to { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            }
+            .request-row {
+                transition: all 0.3s ease;
+            }
+            .request-row:hover {
+                background: #f8f9fa;
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
