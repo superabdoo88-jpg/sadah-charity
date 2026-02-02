@@ -396,14 +396,13 @@ function setupFormSubmission() {
             console.error('خطأ في الإرسال:', error);
             errorMsg.style.display = 'block';
             errorMsg.textContent = '✗ حدث خطأ أثناء الإرسال. يرجى المحاولة مرة أخرى.';
-        } finally {
+            
+            // إعادة الزر لحالته السابقة فقط في حالة الخطأ
             submitBtn.classList.remove('loading');
             submitBtn.disabled = false;
-            if (!editMode) {
-                submitText.textContent = 'إرسال الطلب';
-            } else {
-                submitText.textContent = 'تحديث الطلب';
-            }
+            // في حالة الخطأ، نحافظ على حالة الزر (تعديل أو إرسال)
+            const wasEditMode = document.getElementById('editMode').value === 'true';
+            submitText.textContent = wasEditMode ? 'تحديث الطلب' : 'إرسال الطلب';
         }
     });
 }
@@ -1232,7 +1231,7 @@ function checkPreviousCivilIdRequest() {
     });
 }
 
-function checkCivilIdAndShowWarning(civilId) {
+async function checkCivilIdAndShowWarning(civilId) {
     const warningDiv = document.getElementById('civilIdWarning') || createWarningDiv();
     
     // إخفاء التنبيه إذا كان الحقل فارغاً
@@ -1248,16 +1247,58 @@ function checkCivilIdAndShowWarning(civilId) {
     }
     lastCheckedCivilId = civilId;
     
-    const requests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
-    
-    // التحقق من وضع التعديل - لا نظهر تنبيه للطلب الحالي
+    // التحقق من وضع التعديل
     const currentRequestId = document.getElementById('requestId')?.value;
-    const existingRequest = requests.find(r => r.civilId === civilId && r.requestId !== currentRequestId);
     
-    if (existingRequest) {
-        warningDiv.innerHTML = `تنبيه: يوجد طلب سابق بهذا الرقم المدني (${existingRequest.requestId})`;
+    // 1. التحقق من الطلبات المحلية أولاً
+    const localRequests = JSON.parse(localStorage.getItem(CONFIG.requestsKey) || '[]');
+    const localExisting = localRequests.find(r => 
+        String(r.civilId) === String(civilId) && 
+        r.requestId !== currentRequestId
+    );
+    
+    if (localExisting) {
+        const statusText = localExisting.adminStatus === 'approved' ? '(معتمد)' : '(قيد المراجعة)';
+        warningDiv.innerHTML = `⚠️ <strong>تنبيه:</strong> يوجد طلب سابق بهذا الرقم المدني - رقم الطلب: ${localExisting.requestId} ${statusText}`;
         warningDiv.style.display = 'block';
-    } else {
+        warningDiv.style.background = localExisting.adminStatus === 'approved' ? '#f8d7da' : '#fff3cd';
+        warningDiv.style.color = localExisting.adminStatus === 'approved' ? '#721c24' : '#856404';
+        return;
+    }
+    
+    // 2. التحقق من Google Sheets (للطلبات المعتمدة)
+    try {
+        warningDiv.innerHTML = '🔍 جاري التحقق...';
+        warningDiv.style.display = 'block';
+        warningDiv.style.background = '#e7f3ff';
+        warningDiv.style.color = '#004085';
+        
+        const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=checkRequest&civilId=${civilId}`);
+        const result = await response.json();
+        
+        if (result.success && result.found) {
+            const req = result.request;
+            const statusText = req.adminStatus === 'approved' ? '(معتمد ✓)' : '(قيد المراجعة)';
+            
+            if (req.adminStatus === 'approved') {
+                // طلب معتمد - تحذير قوي
+                warningDiv.innerHTML = `🚫 <strong>لا يمكن تقديم طلب جديد!</strong><br>يوجد طلب معتمد سابق بهذا الرقم المدني<br>رقم الطلب: ${req.requestId} - الاسم: ${req.name}`;
+                warningDiv.style.background = '#f8d7da';
+                warningDiv.style.color = '#721c24';
+            } else {
+                // طلب قيد المراجعة
+                warningDiv.innerHTML = `⚠️ <strong>تنبيه:</strong> يوجد طلب قيد المراجعة بهذا الرقم المدني<br>رقم الطلب: ${req.requestId}`;
+                warningDiv.style.background = '#fff3cd';
+                warningDiv.style.color = '#856404';
+            }
+            warningDiv.style.display = 'block';
+        } else {
+            // لا يوجد طلب سابق
+            warningDiv.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('خطأ في التحقق من الرقم المدني:', error);
+        // في حالة الخطأ، نخفي التنبيه
         warningDiv.style.display = 'none';
     }
 }
