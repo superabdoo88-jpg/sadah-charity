@@ -711,8 +711,16 @@
         }
 
         function viewDetails(requestId) {
+            console.log('viewDetails called with:', requestId);
+            console.log('allRequests:', allRequests);
+            
             const request = allRequests.find(r => r.requestId === requestId);
-            if (!request) return;
+            console.log('Found request:', request);
+            
+            if (!request) {
+                alert('لم يتم العثور على الطلب: ' + requestId);
+                return;
+            }
 
             const status = request.adminStatus || 'pending';
             const statusText = {
@@ -829,36 +837,6 @@
             await processStatusChange(requestId, newStatus, rejectReason);
         }
 
-        // أنيميشن إخفاء الصف مع انتقال فوري للأرشيف
-        function animateRowRemoval(requestId, newStatus) {
-            const row = document.querySelector(`tr[data-request-id="${requestId}"]`);
-            if (row) {
-                // إضافة كلاس الأنيميشن
-                row.classList.add('row-removing');
-                
-                // إزالة الصف من DOM فوراً بعد الأنيميشن
-                setTimeout(() => {
-                    row.remove(); // إزالة الصف من الجدول
-                    
-                    // تحديث الإحصائيات
-                    updateStats();
-                    
-                    // إظهار إشعار نجاح
-                    showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب' : '✗ تم رفض الطلب', newStatus);
-                    
-                    // التحقق إذا لم يتبق طلبات في الجدول
-                    const tbody = document.getElementById('requestsBody');
-                    if (tbody.children.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">لا توجد طلبات قيد المراجعة</td></tr>';
-                    }
-                }, 400);
-            } else {
-                // إذا لم يوجد الصف، فقط حدث الإحصائيات
-                updateStats();
-                showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب' : '✗ تم رفض الطلب', newStatus);
-            }
-        }
-
         // إشعار منبثق
         function showNotification(message, type) {
             const notification = document.createElement('div');
@@ -892,34 +870,64 @@
 
         // معالجة تغيير الحالة (مشتركة)
         async function processStatusChange(requestId, newStatus, rejectReason) {
+            // إظهار مؤشر التحميل
+            const row = document.querySelector(`tr[data-request-id="${requestId}"]`);
+            if (row) {
+                row.style.opacity = '0.5';
+                row.style.pointerEvents = 'none';
+            }
+            
             try {
-                // تحديث محلياً أولاً للاستجابة الفورية
+                // إرسال للسيرفر أولاً باستخدام URLSearchParams (أكثر توافقية)
+                const formData = new URLSearchParams();
+                formData.append('action', 'updateStatus');
+                formData.append('requestId', requestId);
+                formData.append('adminStatus', newStatus);
+                formData.append('adminActionDate', new Date().toLocaleDateString('ar-SA'));
+                formData.append('rejectReason', rejectReason || '');
+                
+                // إرسال الطلب
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                // تحديث محلياً
                 const index = allRequests.findIndex(r => r.requestId === requestId);
                 if (index !== -1) {
                     allRequests[index].adminStatus = newStatus;
                     allRequests[index].adminActionDate = new Date().toLocaleDateString('ar-SA');
                 }
                 
-                // أنيميشن الإخفاء
-                animateRowRemoval(requestId, newStatus);
-                
-                // إرسال للسيرفر في الخلفية
-                fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'updateStatus',
-                        requestId: requestId,
-                        adminStatus: newStatus,
-                        adminActionDate: new Date().toLocaleDateString('ar-SA'),
-                        rejectReason: rejectReason
-                    })
-                });
+                // أنيميشن الإخفاء وإظهار الإشعار
+                if (row) {
+                    row.classList.add('row-removing');
+                    setTimeout(() => {
+                        row.remove();
+                        updateStats();
+                        showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب بنجاح' : '✓ تم رفض الطلب بنجاح', newStatus);
+                        
+                        // التحقق إذا لم يتبق طلبات
+                        const tbody = document.getElementById('requestsBody');
+                        if (tbody.children.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">لا توجد طلبات قيد المراجعة</td></tr>';
+                        }
+                    }, 400);
+                } else {
+                    updateStats();
+                    filterRequests();
+                    showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب بنجاح' : '✓ تم رفض الطلب بنجاح', newStatus);
+                }
                 
                 return true;
             } catch (error) {
                 console.error('خطأ في تحديث الحالة:', error);
+                // إعادة الصف لحالته الطبيعية
+                if (row) {
+                    row.style.opacity = '1';
+                    row.style.pointerEvents = 'auto';
+                }
+                alert('حدث خطأ أثناء تحديث الحالة. يرجى المحاولة مرة أخرى.');
                 return false;
             }
         }
