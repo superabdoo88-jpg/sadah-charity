@@ -638,8 +638,8 @@
                 }[status];
 
                 const actionButtons = status === 'pending' ? `
-                    <button class="btn btn-approve" onclick="event.stopPropagation(); approveFromTable('${req.requestId}')">اعتماد</button>
-                    <button class="btn btn-reject" onclick="event.stopPropagation(); openRejectModal('${req.requestId}')">رفض</button>
+                    <button class="btn btn-approve table-approve-btn" data-id="${req.requestId}">اعتماد</button>
+                    <button class="btn btn-reject table-reject-btn" data-id="${req.requestId}">رفض</button>
                 ` : '';
 
                 return `
@@ -651,12 +651,46 @@
                         <td>${req.submissionDate || '-'}</td>
                         <td><span class="status-badge status-${status}">${statusText}</span></td>
                         <td class="action-buttons">
-                            <button class="btn btn-view" onclick="event.stopPropagation(); viewDetails('${req.requestId}')">عرض</button>
+                            <button class="btn btn-view table-view-btn" data-id="${req.requestId}">عرض</button>
                             ${actionButtons}
                         </td>
                     </tr>
                 `;
             }).join('');
+            
+            // إضافة event listeners للأزرار
+            attachTableButtonListeners();
+        }
+        
+        // إضافة event listeners لأزرار الجدول
+        function attachTableButtonListeners() {
+            // أزرار العرض
+            document.querySelectorAll('.table-view-btn').forEach(btn => {
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    const id = this.getAttribute('data-id');
+                    viewDetails(id);
+                };
+            });
+            
+            // أزرار الاعتماد
+            document.querySelectorAll('.table-approve-btn').forEach(btn => {
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    const id = this.getAttribute('data-id');
+                    approveFromTable(id);
+                };
+            });
+            
+            // أزرار الرفض
+            document.querySelectorAll('.table-reject-btn').forEach(btn => {
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    const id = this.getAttribute('data-id');
+                    console.log('Table reject button clicked, id:', id);
+                    openRejectModal(id);
+                };
+            });
         }
 
         function filterRequests() {
@@ -733,13 +767,13 @@
             }[status];
             const statusClass = `status-${status}`;
 
-            // أزرار الإجراءات
+            // أزرار الإجراءات - استخدام data-id لتجنب مشاكل الـ quotes
             const actionButtons = status === 'pending' ? `
                 <div class="modal-actions">
-                    <button class="btn btn-approve btn-large" onclick="updateStatusAndClose('${request.requestId}', 'approved')">
+                    <button class="btn btn-approve btn-large" data-action="approve" data-id="${request.requestId}">
                         ✓ اعتماد الطلب
                     </button>
-                    <button class="btn btn-reject btn-large" onclick="openRejectModal('${request.requestId}')">
+                    <button class="btn btn-reject btn-large" data-action="reject" data-id="${request.requestId}">
                         ✗ رفض الطلب
                     </button>
                 </div>
@@ -829,6 +863,26 @@
             `;
 
             document.getElementById('detailsModal').classList.add('show');
+            
+            // إضافة event listeners للأزرار
+            const approveBtn = document.querySelector('[data-action="approve"]');
+            const rejectBtn = document.querySelector('[data-action="reject"]');
+            
+            if (approveBtn) {
+                approveBtn.onclick = function() {
+                    const id = this.getAttribute('data-id');
+                    console.log('Approve clicked, id:', id);
+                    updateStatusAndClose(id, 'approved');
+                };
+            }
+            
+            if (rejectBtn) {
+                rejectBtn.onclick = function() {
+                    const id = this.getAttribute('data-id');
+                    console.log('Reject clicked, id:', id);
+                    openRejectModal(id);
+                };
+            }
         }
 
         // متغير لحفظ رقم الطلب المراد رفضه
@@ -951,12 +1005,21 @@
 
         // فتح نافذة الرفض
         function openRejectModal(requestId) {
+            console.log('openRejectModal called with:', requestId);
+            
+            if (!requestId) {
+                console.error('requestId is empty!');
+                return;
+            }
+            
             currentRejectRequestId = requestId;
             document.getElementById('rejectRequestId').textContent = requestId;
             document.getElementById('rejectReason').value = '';
             
             // التحقق من وجود بريد إلكتروني للمتقدم
             const request = allRequests.find(r => String(r.requestId) === String(requestId));
+            console.log('Found request for reject:', request);
+            
             const emailWarning = document.getElementById('emailWarning');
             if (emailWarning) {
                 if (!request || !request.email || !request.email.includes('@')) {
@@ -969,22 +1032,37 @@
             
             // إغلاق نافذة التفاصيل إذا كانت مفتوحة
             closeModal();
+            
+            // فتح نافذة الرفض
             document.getElementById('rejectModal').classList.add('show');
+            console.log('Reject modal should be visible now');
         }
 
         // إغلاق نافذة الرفض
         function closeRejectModal() {
             document.getElementById('rejectModal').classList.remove('show');
-            currentRejectRequestId = null;
+            // لا نمسح currentRejectRequestId هنا لأنه قد يُستخدم في confirmReject
+            // سيتم مسحه بعد انتهاء العملية
         }
 
         // تأكيد الرفض
         async function confirmReject() {
-            if (!currentRejectRequestId) return;
+            console.log('confirmReject called, currentRejectRequestId:', currentRejectRequestId);
+            
+            if (!currentRejectRequestId) {
+                console.error('No request ID to reject!');
+                alert('خطأ: لم يتم تحديد الطلب المراد رفضه');
+                return;
+            }
             
             const rejectReason = document.getElementById('rejectReason').value.trim();
+            const requestId = currentRejectRequestId; // حفظ القيمة قبل إغلاق النافذة
+            
             closeRejectModal();
-            await processStatusChange(currentRejectRequestId, 'rejected', rejectReason);
+            currentRejectRequestId = null; // مسح المتغير بعد الحفظ
+            
+            console.log('Processing rejection for:', requestId, 'Reason:', rejectReason);
+            await processStatusChange(requestId, 'rejected', rejectReason);
         }
 
         function closeModal() {
