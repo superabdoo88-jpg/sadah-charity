@@ -342,6 +342,10 @@ function setupFormSubmission() {
             // حفظ الطلب محلياً
             saveRequestLocally(data);
             
+            // إيقاف مؤشر التحميل
+            submitBtn.classList.remove('loading');
+            submitBtn.disabled = false;
+            
             // إظهار رسالة النجاح
             successMsg.style.display = 'block';
             successMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1258,11 +1262,30 @@ async function checkCivilIdAndShowWarning(civilId) {
     );
     
     if (localExisting) {
-        const statusText = localExisting.adminStatus === 'approved' ? '(معتمد)' : '(قيد المراجعة)';
-        warningDiv.innerHTML = `⚠️ <strong>تنبيه:</strong> يوجد طلب سابق بهذا الرقم المدني - رقم الطلب: ${localExisting.requestId} ${statusText}`;
+        const status = localExisting.adminStatus || 'pending';
+        
+        // تجاهل الطلبات المرفوضة - يمكن للمستخدم تقديم طلب جديد
+        if (status === 'rejected') {
+            warningDiv.style.display = 'none';
+            return;
+        }
+        
+        let message, bgColor, textColor;
+        
+        if (status === 'approved') {
+            message = `🚫 <strong>لا يمكن تقديم طلب جديد!</strong><br>يوجد طلب <strong>معتمد</strong> سابق بهذا الرقم المدني<br>رقم الطلب: ${localExisting.requestId}`;
+            bgColor = '#f8d7da';
+            textColor = '#721c24';
+        } else {
+            message = `⚠️ <strong>تنبيه:</strong> يوجد طلب <strong>قيد المراجعة</strong> بهذا الرقم المدني<br>رقم الطلب: ${localExisting.requestId}<br>يرجى انتظار الرد على طلبك السابق`;
+            bgColor = '#fff3cd';
+            textColor = '#856404';
+        }
+        
+        warningDiv.innerHTML = message;
         warningDiv.style.display = 'block';
-        warningDiv.style.background = localExisting.adminStatus === 'approved' ? '#f8d7da' : '#fff3cd';
-        warningDiv.style.color = localExisting.adminStatus === 'approved' ? '#721c24' : '#856404';
+        warningDiv.style.background = bgColor;
+        warningDiv.style.color = textColor;
         return;
     }
     
