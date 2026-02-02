@@ -537,9 +537,11 @@
                 <p style="margin-bottom: 15px; color: #666;">
                     هل أنت متأكد من رفض الطلب رقم: <strong id="rejectRequestId"></strong>؟
                 </p>
+                <div id="emailWarning" style="display: none; background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em;">
+                </div>
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
-                        سبب الرفض <span style="font-weight: normal; color: #888;">(اختياري)</span>
+                        سبب الرفض <span style="font-weight: normal; color: #888;">(اختياري - سيُرسل للمتقدم)</span>
                     </label>
                     <textarea id="rejectReason" rows="3" placeholder="اكتب سبب الرفض ليصل للمتقدم في الإيميل..."
                         style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Tajawal', sans-serif; resize: vertical;"></textarea>
@@ -714,7 +716,8 @@
             console.log('viewDetails called with:', requestId);
             console.log('allRequests:', allRequests);
             
-            const request = allRequests.find(r => r.requestId === requestId);
+            // تحويل requestId لنص للمقارنة الصحيحة
+            const request = allRequests.find(r => String(r.requestId) === String(requestId));
             console.log('Found request:', request);
             
             if (!request) {
@@ -775,6 +778,10 @@
                     <div class="detail-row">
                         <span class="detail-label">الهاتف:</span>
                         <span class="detail-value">${request.phone || '-'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">البريد الإلكتروني:</span>
+                        <span class="detail-value">${request.email || '<span style="color:#999">غير متوفر</span>'}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">العنوان:</span>
@@ -881,7 +888,7 @@
                 // إرسال للسيرفر أولاً باستخدام URLSearchParams (أكثر توافقية)
                 const formData = new URLSearchParams();
                 formData.append('action', 'updateStatus');
-                formData.append('requestId', requestId);
+                formData.append('requestId', String(requestId));
                 formData.append('adminStatus', newStatus);
                 formData.append('adminActionDate', new Date().toLocaleDateString('ar-SA'));
                 formData.append('rejectReason', rejectReason || '');
@@ -892,12 +899,20 @@
                     body: formData
                 });
                 
-                // تحديث محلياً
-                const index = allRequests.findIndex(r => r.requestId === requestId);
+                // تحديث محلياً - استخدام String للمقارنة الصحيحة
+                const index = allRequests.findIndex(r => String(r.requestId) === String(requestId));
                 if (index !== -1) {
                     allRequests[index].adminStatus = newStatus;
                     allRequests[index].adminActionDate = new Date().toLocaleDateString('ar-SA');
+                    if (rejectReason) {
+                        allRequests[index].rejectReason = rejectReason;
+                    }
                 }
+                
+                // رسالة النجاح
+                const statusMsg = newStatus === 'approved' 
+                    ? '✓ تم اعتماد الطلب بنجاح\nتم إرسال إشعار للمتقدم' 
+                    : '✓ تم رفض الطلب\nتم إرسال إشعار بسبب الرفض للمتقدم';
                 
                 // أنيميشن الإخفاء وإظهار الإشعار
                 if (row) {
@@ -905,18 +920,20 @@
                     setTimeout(() => {
                         row.remove();
                         updateStats();
-                        showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب بنجاح' : '✓ تم رفض الطلب بنجاح', newStatus);
+                        showNotification(statusMsg, newStatus);
                         
-                        // التحقق إذا لم يتبق طلبات
+                        // التحقق إذا لم يتبق طلبات في العرض الحالي
                         const tbody = document.getElementById('requestsBody');
-                        if (tbody.children.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">لا توجد طلبات قيد المراجعة</td></tr>';
+                        if (tbody.children.length === 0 || tbody.querySelectorAll('.request-row').length === 0) {
+                            const statusFilter = document.getElementById('statusFilter').value;
+                            const msg = statusFilter === 'pending' ? 'لا توجد طلبات قيد المراجعة' : 'لا توجد طلبات';
+                            tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${msg}</td></tr>`;
                         }
                     }, 400);
                 } else {
                     updateStats();
                     filterRequests();
-                    showNotification(newStatus === 'approved' ? '✓ تم اعتماد الطلب بنجاح' : '✓ تم رفض الطلب بنجاح', newStatus);
+                    showNotification(statusMsg, newStatus);
                 }
                 
                 return true;
@@ -937,6 +954,19 @@
             currentRejectRequestId = requestId;
             document.getElementById('rejectRequestId').textContent = requestId;
             document.getElementById('rejectReason').value = '';
+            
+            // التحقق من وجود بريد إلكتروني للمتقدم
+            const request = allRequests.find(r => String(r.requestId) === String(requestId));
+            const emailWarning = document.getElementById('emailWarning');
+            if (emailWarning) {
+                if (!request || !request.email || !request.email.includes('@')) {
+                    emailWarning.style.display = 'block';
+                    emailWarning.innerHTML = '⚠️ <strong>تنبيه:</strong> لا يوجد بريد إلكتروني لهذا المتقدم، لن يصله إشعار بسبب الرفض.';
+                } else {
+                    emailWarning.style.display = 'none';
+                }
+            }
+            
             // إغلاق نافذة التفاصيل إذا كانت مفتوحة
             closeModal();
             document.getElementById('rejectModal').classList.add('show');
